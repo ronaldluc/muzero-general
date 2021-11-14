@@ -1,7 +1,7 @@
 import os
 import sys
 
-import nevergrad
+# import nevergrad
 import numpy
 import ray
 

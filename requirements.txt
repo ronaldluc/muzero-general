@@ -1,7 +1,7 @@
 numpy
 torch
 tensorboard
-gym
+gym[atari]
 ray
 seaborn
 nevergrad
