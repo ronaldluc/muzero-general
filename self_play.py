@@ -30,7 +30,7 @@ class SelfPlay:
 
     def continuous_self_play(self, shared_storage, replay_buffer, test_mode=False):
         while ray.get(
-            shared_storage.get_info.remote("training_step")
+                shared_storage.get_info.remote("training_step")
         ) < self.config.training_steps and not ray.get(
             shared_storage.get_info.remote("terminate")
         ):
@@ -94,21 +94,21 @@ class SelfPlay:
                 time.sleep(self.config.self_play_delay)
             if not test_mode and self.config.ratio:
                 while (
-                    ray.get(shared_storage.get_info.remote("training_step"))
-                    / max(
-                        1, ray.get(shared_storage.get_info.remote("num_played_steps"))
-                    )
-                    < self.config.ratio
-                    and ray.get(shared_storage.get_info.remote("training_step"))
-                    < self.config.training_steps
-                    and not ray.get(shared_storage.get_info.remote("terminate"))
+                        ray.get(shared_storage.get_info.remote("training_step"))
+                        / max(
+                    1, ray.get(shared_storage.get_info.remote("num_played_steps"))
+                )
+                        < self.config.ratio
+                        and ray.get(shared_storage.get_info.remote("training_step"))
+                        < self.config.training_steps
+                        and not ray.get(shared_storage.get_info.remote("terminate"))
                 ):
                     time.sleep(0.5)
 
         self.close_game()
 
     def play_game(
-        self, temperature, temperature_threshold, render, opponent, muzero_player
+            self, temperature, temperature_threshold, render, opponent, muzero_player
     ):
         """
         Play one game with actions based on the Monte Carlo tree search at each moves.
@@ -127,13 +127,13 @@ class SelfPlay:
 
         with torch.no_grad():
             while (
-                not done and len(game_history.action_history) <= self.config.max_moves
+                    not done and len(game_history.action_history) <= self.config.max_moves
             ):
                 assert (
-                    len(numpy.array(observation).shape) == 3
+                        len(numpy.array(observation).shape) == 3
                 ), f"Observation should be 3 dimensionnal instead of {len(numpy.array(observation).shape)} dimensionnal. Got observation of shape: {numpy.array(observation).shape}"
                 assert (
-                    numpy.array(observation).shape == self.config.observation_shape
+                        numpy.array(observation).shape == self.config.observation_shape
                 ), f"Observation should match the observation_shape defined in MuZeroConfig. Expected {self.config.observation_shape} but got {numpy.array(observation).shape}."
                 stacked_observations = game_history.get_stacked_observations(
                     -1,
@@ -153,7 +153,7 @@ class SelfPlay:
                         root,
                         temperature
                         if not temperature_threshold
-                        or len(game_history.action_history) < temperature_threshold
+                           or len(game_history.action_history) < temperature_threshold
                         else 0,
                     )
 
@@ -259,13 +259,13 @@ class MCTS:
         self.config = config
 
     def run(
-        self,
-        model,
-        observation,
-        legal_actions,
-        to_play,
-        add_exploration_noise,
-        override_root_with=None,
+            self,
+            model,
+            observation,
+            legal_actions,
+            to_play,
+            add_exploration_noise,
+            override_root_with=None,
     ):
         """
         At the root of the search tree we use the representation function to obtain a
@@ -280,9 +280,9 @@ class MCTS:
             root = Node(0)
             observation = (
                 torch.tensor(observation)
-                .float()
-                .unsqueeze(0)
-                .to(next(model.parameters()).device)
+                    .float()
+                    .unsqueeze(0)
+                    .to(next(model.parameters()).device)
             )
             (
                 root_predicted_value,
@@ -383,10 +383,10 @@ class MCTS:
         The score for a node is based on its value, plus an exploration bonus based on the prior.
         """
         pb_c = (
-            math.log(
-                (parent.visit_count + self.config.pb_c_base + 1) / self.config.pb_c_base
-            )
-            + self.config.pb_c_init
+                math.log(
+                    (parent.visit_count + self.config.pb_c_base + 1) / self.config.pb_c_base
+                )
+                + self.config.pb_c_init
         )
         pb_c *= math.sqrt(parent.visit_count) / (child.visit_count + 1)
 
@@ -424,8 +424,8 @@ class MCTS:
                 min_max_stats.update(node.reward + self.config.discount * -node.value())
 
                 value = (
-                    -node.reward if node.to_play == to_play else node.reward
-                ) + self.config.discount * value
+                            -node.reward if node.to_play == to_play else node.reward
+                        ) + self.config.discount * value
 
         else:
             raise NotImplementedError("More than two player mode not implemented.")
@@ -521,7 +521,7 @@ class GameHistory:
 
         stacked_observations = self.observation_history[index].copy()
         for past_observation_index in reversed(
-            range(index - num_stacked_observations, index)
+                range(index - num_stacked_observations, index)
         ):
             if 0 <= past_observation_index:
                 previous_observation = numpy.concatenate(

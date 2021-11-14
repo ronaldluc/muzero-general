@@ -15,10 +15,9 @@ class MuZeroConfig:
         self.seed = 0  # Seed for numpy, torch and the game
         self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
-
-
         ### Game
-        self.observation_shape = (1, 1, 8)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.observation_shape = (1, 1,
+                                  8)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(4))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(1))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
@@ -26,8 +25,6 @@ class MuZeroConfig:
         # Evaluate
         self.muzero_player = 0  # Turn Muzero begins to play (0: MuZero plays first, 1: MuZero plays second)
         self.opponent = None  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
-
-
 
         ### Self-Play
         self.num_workers = 1  # Number of simultaneous threads/workers self-playing to feed the replay buffer
@@ -45,12 +42,10 @@ class MuZeroConfig:
         self.pb_c_base = 19652
         self.pb_c_init = 1.25
 
-
-
         ### Network
         self.network = "fullyconnected"  # "resnet" / "fullyconnected"
         self.support_size = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size. Choose it so that support_size <= sqrt(max(abs(discounted reward)))
-        
+
         # Residual Network
         self.downsample = False  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
         self.blocks = 2  # Number of blocks in the ResNet
@@ -69,11 +64,11 @@ class MuZeroConfig:
         self.fc_reward_layers = [64]  # Define the hidden layers in the reward network
         self.fc_value_layers = [64]  # Define the hidden layers in the value network
         self.fc_policy_layers = [64]  # Define the hidden layers in the policy network
-        
-
 
         ### Training
-        self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
+        self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
+                                         os.path.basename(__file__)[:-3], datetime.datetime.now().strftime(
+                "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
         self.training_steps = 200000  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 64  # Number of parts of games to train on at each training step
@@ -90,8 +85,6 @@ class MuZeroConfig:
         self.lr_decay_rate = 1  # Set it to 1 to use a constant learning rate
         self.lr_decay_steps = 1000
 
-
-
         ### Replay Buffer
         self.replay_buffer_size = 2000  # Number of self-play games to keep in the replay buffer
         self.num_unroll_steps = 10  # Number of game moves to keep for every batch element
@@ -103,14 +96,11 @@ class MuZeroConfig:
         self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
         self.reanalyse_on_gpu = False
 
-
-
         # Best known ratio for deterministic version: 0.8 --> 0.4 in 250 self played game (self_play_delay = 25 on GTX 1050Ti Max-Q).
         ### Adjust the self play / training ratio to avoid over/underfitting
         self.self_play_delay = 0  # Number of seconds to wait after each played game
         self.training_delay = 0  # Number of seconds to wait after each training step
         self.ratio = None  # Desired training steps per self played step ratio. Equivalent to a synchronous version, training can take much longer. Set it to None to disable it
-
 
     def visit_softmax_temperature_fn(self, trained_steps):
         """
@@ -222,7 +212,6 @@ on its first attempt. Please see the source code for details.
 Created by Oleg Klimov. Licensed on the same terms as the rest of OpenAI Gym.
 """
 
-
 import math
 import numpy as np
 
@@ -237,7 +226,8 @@ try:
         contactListener,
     )
 except ModuleNotFoundError:
-    raise ModuleNotFoundError('swig librairy and box2d-py are required to run lunarlander.\n\nPlease install swig with "sudo apt install swig" on Ubuntu or "brew install swig" on mac.\nThen run "pip install box2d-py".\nFor more detailed instructions: https://github.com/openai/gym')
+    raise ModuleNotFoundError(
+        'swig librairy and box2d-py are required to run lunarlander.\n\nPlease install swig with "sudo apt install swig" on Ubuntu or "brew install swig" on mac.\nThen run "pip install box2d-py".\nFor more detailed instructions: https://github.com/openai/gym')
 
 import gym
 from gym import spaces
@@ -271,8 +261,8 @@ class ContactDetector(contactListener):
 
     def BeginContact(self, contact):
         if (
-            self.env.lander == contact.fixtureA.body
-            or self.env.lander == contact.fixtureB.body
+                self.env.lander == contact.fixtureA.body
+                or self.env.lander == contact.fixtureB.body
         ):
             self.env.game_over = True
         for i in range(2):
@@ -427,7 +417,7 @@ class DeterministicLunarLander(gym.Env, EzPickle):
             )
             if i == -1:
                 rjd.lowerAngle = (
-                    +0.9 - 0.5
+                        +0.9 - 0.5
                 )  # The most esoteric numbers here, angled legs have freedom to travel within
                 rjd.upperAngle = +0.9
             else:
@@ -478,7 +468,7 @@ class DeterministicLunarLander(gym.Env, EzPickle):
 
         m_power = 0.0
         if (self.continuous and action[0] > 0.0) or (
-            not self.continuous and action == 2
+                not self.continuous and action == 2
         ):
             # Main engine
             if self.continuous:
@@ -487,7 +477,7 @@ class DeterministicLunarLander(gym.Env, EzPickle):
             else:
                 m_power = 1.0
             ox = (
-                tip[0] * (4 / SCALE + 2 * dispersion[0]) + side[0] * dispersion[1]
+                    tip[0] * (4 / SCALE + 2 * dispersion[0]) + side[0] * dispersion[1]
             )  # 4 is move a bit downwards, +-2 for randomness
             oy = -tip[1] * (4 / SCALE + 2 * dispersion[0]) - side[1] * dispersion[1]
             impulse_pos = (self.lander.position[0] + ox, self.lander.position[1] + oy)
@@ -510,7 +500,7 @@ class DeterministicLunarLander(gym.Env, EzPickle):
 
         s_power = 0.0
         if (self.continuous and np.abs(action[1]) > 0.5) or (
-            not self.continuous and action in [1, 3]
+                not self.continuous and action in [1, 3]
         ):
             # Orientation engines
             if self.continuous:
@@ -521,10 +511,10 @@ class DeterministicLunarLander(gym.Env, EzPickle):
                 direction = action - 2
                 s_power = 1.0
             ox = tip[0] * dispersion[0] + side[0] * (
-                3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
+                    3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
             )
             oy = -tip[1] * dispersion[0] - side[1] * (
-                3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
+                    3 * dispersion[1] + direction * SIDE_ENGINE_AWAY / SCALE
             )
             impulse_pos = (
                 self.lander.position[0] + ox - tip[0] * 17 / SCALE,
@@ -560,11 +550,11 @@ class DeterministicLunarLander(gym.Env, EzPickle):
 
         reward = 0
         shaping = (
-            -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])
-            - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])
-            - 100 * abs(state[4])
-            + 10 * state[6]
-            + 10 * state[7]
+                -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])
+                - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])
+                - 100 * abs(state[4])
+                + 10 * state[6]
+                + 10 * state[7]
         )  # And ten points for legs contact, the idea is if you
         # lose contact again after landing, you get negative reward
         if self.prev_shaping is not None:
@@ -572,7 +562,7 @@ class DeterministicLunarLander(gym.Env, EzPickle):
         self.prev_shaping = shaping
 
         reward -= (
-            m_power * 0.30
+                m_power * 0.30
         )  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power * 0.03
 

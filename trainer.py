@@ -66,7 +66,7 @@ class Trainer:
         next_batch = replay_buffer.get_batch.remote()
         # Training loop
         while self.training_step < self.config.training_steps and not ray.get(
-            shared_storage.get_info.remote("terminate")
+                shared_storage.get_info.remote("terminate")
         ):
             index_batch, batch = ray.get(next_batch)
             next_batch = replay_buffer.get_batch.remote()
@@ -111,13 +111,13 @@ class Trainer:
                 time.sleep(self.config.training_delay)
             if self.config.ratio:
                 while (
-                    self.training_step
-                    / max(
-                        1, ray.get(shared_storage.get_info.remote("num_played_steps"))
-                    )
-                    > self.config.ratio
-                    and self.training_step < self.config.training_steps
-                    and not ray.get(shared_storage.get_info.remote("terminate"))
+                        self.training_step
+                        / max(
+                    1, ray.get(shared_storage.get_info.remote("num_played_steps"))
+                )
+                        > self.config.ratio
+                        and self.training_step < self.config.training_steps
+                        and not ray.get(shared_storage.get_info.remote("terminate"))
                 ):
                     time.sleep(0.5)
 
@@ -194,14 +194,14 @@ class Trainer:
         # Compute priorities for the prioritized replay (See paper appendix Training)
         pred_value_scalar = (
             models.support_to_scalar(value, self.config.support_size)
-            .detach()
-            .cpu()
-            .numpy()
-            .squeeze()
+                .detach()
+                .cpu()
+                .numpy()
+                .squeeze()
         )
         priorities[:, 0] = (
-            numpy.abs(pred_value_scalar - target_value_scalar[:, 0])
-            ** self.config.PER_alpha
+                numpy.abs(pred_value_scalar - target_value_scalar[:, 0])
+                ** self.config.PER_alpha
         )
 
         for i in range(1, len(predictions)):
@@ -237,14 +237,14 @@ class Trainer:
             # Compute priorities for the prioritized replay (See paper appendix Training)
             pred_value_scalar = (
                 models.support_to_scalar(value, self.config.support_size)
-                .detach()
-                .cpu()
-                .numpy()
-                .squeeze()
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .squeeze()
             )
             priorities[:, i] = (
-                numpy.abs(pred_value_scalar - target_value_scalar[:, i])
-                ** self.config.PER_alpha
+                    numpy.abs(pred_value_scalar - target_value_scalar[:, i])
+                    ** self.config.PER_alpha
             )
 
         # Scale the value loss, paper recommends by 0.25 (See paper appendix Reanalyze)
@@ -275,19 +275,19 @@ class Trainer:
         Update learning rate
         """
         lr = self.config.lr_init * self.config.lr_decay_rate ** (
-            self.training_step / self.config.lr_decay_steps
+                self.training_step / self.config.lr_decay_steps
         )
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
     @staticmethod
     def loss_function(
-        value,
-        reward,
-        policy_logits,
-        target_value,
-        target_reward,
-        target_policy,
+            value,
+            reward,
+            policy_logits,
+            target_value,
+            target_reward,
+            target_policy,
     ):
         # Cross-entropy seems to have a better convergence than MSE
         value_loss = (-target_value * torch.nn.LogSoftmax(dim=1)(value)).sum(1)

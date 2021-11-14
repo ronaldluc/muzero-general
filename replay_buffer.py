@@ -40,10 +40,10 @@ class ReplayBuffer:
                 priorities = []
                 for i, root_value in enumerate(game_history.root_values):
                     priority = (
-                        numpy.abs(
-                            root_value - self.compute_target_value(game_history, i)
-                        )
-                        ** self.config.PER_alpha
+                            numpy.abs(
+                                root_value - self.compute_target_value(game_history, i)
+                            )
+                            ** self.config.PER_alpha
                     )
                     priorities.append(priority)
 
@@ -211,8 +211,8 @@ class ReplayBuffer:
                     game_pos + len(priority), len(self.buffer[game_id].priorities)
                 )
                 self.buffer[game_id].priorities[start_index:end_index] = priority[
-                    : end_index - start_index
-                ]
+                                                                         : end_index - start_index
+                                                                         ]
 
                 # Update game priorities
                 self.buffer[game_id].game_priority = numpy.max(
@@ -232,7 +232,7 @@ class ReplayBuffer:
             last_step_value = (
                 root_values[bootstrap_index]
                 if game_history.to_play_history[bootstrap_index]
-                == game_history.to_play_history[index]
+                   == game_history.to_play_history[index]
                 else -root_values[bootstrap_index]
             )
 
@@ -241,15 +241,15 @@ class ReplayBuffer:
             value = 0
 
         for i, reward in enumerate(
-            game_history.reward_history[index + 1 : bootstrap_index + 1]
+                game_history.reward_history[index + 1: bootstrap_index + 1]
         ):
             # The value is oriented from the perspective of the current player
             value += (
-                reward
-                if game_history.to_play_history[index]
-                == game_history.to_play_history[index + i]
-                else -reward
-            ) * self.config.discount ** i
+                         reward
+                         if game_history.to_play_history[index]
+                            == game_history.to_play_history[index + i]
+                         else -reward
+                     ) * self.config.discount ** i
 
         return value
 
@@ -259,7 +259,7 @@ class ReplayBuffer:
         """
         target_values, target_rewards, target_policies, actions = [], [], [], []
         for current_index in range(
-            state_index, state_index + self.config.num_unroll_steps + 1
+                state_index, state_index + self.config.num_unroll_steps + 1
         ):
             value = self.compute_target_value(game_history, current_index)
 
@@ -322,7 +322,7 @@ class Reanalyse:
             time.sleep(0.1)
 
         while ray.get(
-            shared_storage.get_info.remote("training_step")
+                shared_storage.get_info.remote("training_step")
         ) < self.config.training_steps and not ray.get(
             shared_storage.get_info.remote("terminate")
         ):
@@ -343,8 +343,8 @@ class Reanalyse:
 
                 observations = (
                     torch.tensor(observations)
-                    .float()
-                    .to(next(self.model.parameters()).device)
+                        .float()
+                        .to(next(self.model.parameters()).device)
                 )
                 values = models.support_to_scalar(
                     self.model.initial_inference(observations)[0],

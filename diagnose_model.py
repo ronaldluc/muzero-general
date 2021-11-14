@@ -26,7 +26,7 @@ class DiagnoseModel:
         self.model.eval()
 
     def get_virtual_trajectory_from_obs(
-        self, observation, horizon, plot=True, to_play=0
+            self, observation, horizon, plot=True, to_play=0
     ):
         """
         MuZero plays a game but uses its model instead of using the environment.
@@ -77,7 +77,7 @@ class DiagnoseModel:
         return trajectory_info
 
     def compare_virtual_with_real_trajectories(
-        self, first_obs, game, horizon, plot=True
+            self, first_obs, game, horizon, plot=True
     ):
         """
         First, MuZero plays a game but uses its model instead of using the environment.
