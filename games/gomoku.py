@@ -18,7 +18,8 @@ class MuZeroConfig:
         ### Game
         self.observation_shape = (3, 11,
                                   11)  # Dimensions of the game observation, must be 3 (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.action_space = list(range(11 * 11))  # Fixed list of all possible actions. You should only edit the length
+        self.action_space = list(
+            range(11 * 11))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(2))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
@@ -53,9 +54,12 @@ class MuZeroConfig:
         self.reduced_channels_reward = 2  # Number of channels in reward head
         self.reduced_channels_value = 2  # Number of channels in value head
         self.reduced_channels_policy = 4  # Number of channels in policy head
-        self.resnet_fc_reward_layers = [64]  # Define the hidden layers in the reward head of the dynamic network
-        self.resnet_fc_value_layers = [64]  # Define the hidden layers in the value head of the prediction network
-        self.resnet_fc_policy_layers = [64]  # Define the hidden layers in the policy head of the prediction network
+        self.resnet_fc_reward_layers = [
+            64]  # Define the hidden layers in the reward head of the dynamic network
+        self.resnet_fc_value_layers = [
+            64]  # Define the hidden layers in the value head of the prediction network
+        self.resnet_fc_policy_layers = [
+            64]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
         self.encoding_size = 32
@@ -67,8 +71,9 @@ class MuZeroConfig:
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
-                                         os.path.basename(__file__)[:-3], datetime.datetime.now().strftime(
-                "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
+                                         os.path.basename(__file__)[:-3],
+                                         datetime.datetime.now().strftime(
+                                             "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
         self.training_steps = 10000  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 512  # Number of parts of games to train on at each training step

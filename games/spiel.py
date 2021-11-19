@@ -34,8 +34,10 @@ class MuZeroConfig:
         self.observation_shape = tuple(
             self.game.observation_tensor_shape())  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(
-            self.game.policy_tensor_shape()[0]))  # Fixed list of all possible actions. You should only edit the length
-        self.players = list(range(self.game.num_players()))  # List of players. You should only edit the length
+            self.game.policy_tensor_shape()[
+                0]))  # Fixed list of all possible actions. You should only edit the length
+        self.players = list(
+            range(self.game.num_players()))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
         # Evaluate
@@ -69,9 +71,12 @@ class MuZeroConfig:
         self.reduced_channels_reward = 16  # Number of channels in reward head
         self.reduced_channels_value = 16  # Number of channels in value head
         self.reduced_channels_policy = 16  # Number of channels in policy head
-        self.resnet_fc_reward_layers = [8]  # Define the hidden layers in the reward head of the dynamic network
-        self.resnet_fc_value_layers = [8]  # Define the hidden layers in the value head of the prediction network
-        self.resnet_fc_policy_layers = [8]  # Define the hidden layers in the policy head of the prediction network
+        self.resnet_fc_reward_layers = [
+            8]  # Define the hidden layers in the reward head of the dynamic network
+        self.resnet_fc_value_layers = [
+            8]  # Define the hidden layers in the value head of the prediction network
+        self.resnet_fc_policy_layers = [
+            8]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
         self.encoding_size = 32
@@ -83,8 +88,9 @@ class MuZeroConfig:
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
-                                         os.path.basename(__file__)[:-3], datetime.datetime.now().strftime(
-                "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
+                                         os.path.basename(__file__)[:-3],
+                                         datetime.datetime.now().strftime(
+                                             "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
         self.training_steps = 1000000  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 64  # Number of parts of games to train on at each training step
@@ -257,7 +263,8 @@ class Spiel:
             current_player = 1
         else:
             current_player = 0
-        return numpy.array(self.board.observation_tensor(current_player)).reshape(self.game.observation_tensor_shape())
+        return numpy.array(self.board.observation_tensor(current_player)).reshape(
+            self.game.observation_tensor_shape())
 
     def legal_actions(self):
         return self.board.legal_actions()

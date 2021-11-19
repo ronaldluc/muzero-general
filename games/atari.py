@@ -23,7 +23,8 @@ class MuZeroConfig:
         ### Game
         self.observation_shape = (3, 96,
                                   96)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.action_space = list(range(4))  # Fixed list of all possible actions. You should only edit the length
+        self.action_space = list(
+            range(4))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(1))  # List of players. You should only edit the length
         self.stacked_observations = 32  # Number of previous observations and previous actions to add to the current observation
 
@@ -58,8 +59,10 @@ class MuZeroConfig:
         self.reduced_channels_reward = 256  # Number of channels in reward head
         self.reduced_channels_value = 256  # Number of channels in value head
         self.reduced_channels_policy = 256  # Number of channels in policy head
-        self.resnet_fc_reward_layers = [256, 256]  # Define the hidden layers in the reward head of the dynamic network
-        self.resnet_fc_value_layers = [256, 256]  # Define the hidden layers in the value head of the prediction network
+        self.resnet_fc_reward_layers = [256,
+                                        256]  # Define the hidden layers in the reward head of the dynamic network
+        self.resnet_fc_value_layers = [256,
+                                       256]  # Define the hidden layers in the value head of the prediction network
         self.resnet_fc_policy_layers = [256,
                                         256]  # Define the hidden layers in the policy head of the prediction network
 
@@ -73,12 +76,15 @@ class MuZeroConfig:
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
-                                         os.path.basename(__file__)[:-3], datetime.datetime.now().strftime(
-                "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
+                                         os.path.basename(__file__)[:-3],
+                                         datetime.datetime.now().strftime(
+                                             "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
-        self.training_steps = int(1000e3)  # Total number of training steps (ie weights update according to a batch)
+        self.training_steps = int(
+            1000e3)  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 1024  # Number of parts of games to train on at each training step
-        self.checkpoint_interval = int(1e3)  # Number of training steps before using the model for self-playing
+        self.checkpoint_interval = int(
+            1e3)  # Number of training steps before using the model for self-playing
         self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
         self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
 
@@ -92,7 +98,8 @@ class MuZeroConfig:
         self.lr_decay_steps = 350e3
 
         ### Replay Buffer
-        self.replay_buffer_size = int(1e6)  # Number of self-play games to keep in the replay buffer
+        self.replay_buffer_size = int(
+            1e6)  # Number of self-play games to keep in the replay buffer
         self.num_unroll_steps = 5  # Number of game moves to keep for every batch element
         self.td_steps = 10  # Number of steps in the future to take into account for calculating the target value
         self.PER = True  # Prioritized Replay (See paper appendix Training), select in priority the elements in the replay buffer which are unexpected for the network
