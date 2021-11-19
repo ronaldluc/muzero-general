@@ -1,0 +1,9 @@
+numpy
+gym[atari]
+box2d-py
+matplotlib
+seaborn
+pandas
+PyOpenGL
+PyOpenGL_accelerate
+pyglet
