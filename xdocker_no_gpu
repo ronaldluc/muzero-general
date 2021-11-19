@@ -1,0 +1,9 @@
+#!/bin/bash
+
+XAUTH=~/.docker.xauth
+touch $XAUTH
+xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f $XAUTH nmerge -
+chmod 777 $XAUTH
+docker run -ti --rm --shm-size=20gb --mount type=bind,source=$(pwd),target=/workspace/work --network=host -e DISPLAY=$DISPLAY -v $XAUTH:$XAUTH -e XAUTHORITY=$XAUTH muzero "$@"
+
+# TODO: try the python xdocker utility
