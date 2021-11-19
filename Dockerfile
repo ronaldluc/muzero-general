@@ -78,8 +78,6 @@ RUN conda install swig==3.0.12
 RUN conda install -c conda-forge box2d-py
 RUN pip install atari_py pystan pyglet
 RUN conda install -c conda-forge fontconfig
+RUN apt-get install -y x11-apps
 
 WORKDIR work
-
-COPY docker_entrypoint.sh docker_entrypoint.sh
-ENTRYPOINT ["/workspace/work/docker_entrypoint.sh"]

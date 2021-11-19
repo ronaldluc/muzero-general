@@ -1,11 +1,7 @@
-import os
-import sys
-
 # import nevergrad
-import numpy
 import ray
 
-from muzero import MuZero, load_model_menu, hyperparameter_search
+from muzero import MuZero
 
 if __name__ == "__main__":
     game_file = 'tiling'
