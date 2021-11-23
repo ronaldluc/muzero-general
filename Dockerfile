@@ -79,5 +79,6 @@ RUN conda install -c conda-forge box2d-py
 RUN pip install atari_py pystan pyglet
 RUN conda install -c conda-forge fontconfig
 RUN apt-get install -y x11-apps
+RUN pip install -U scikit-spatial hiredis
 
 WORKDIR work

@@ -22,6 +22,8 @@ from simulation.robot_dynamics import Robot
 
 pyglet.options["debug_gl"] = False
 from pyglet import gl
+from skspatial.objects import Line, Points, Vector
+from scipy.spatial.transform import Rotation as R
 
 STATE_W = 96  # less than Atari 160x192
 STATE_H = 96
@@ -46,122 +48,122 @@ BORDER_MIN_COUNT = 4
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
 
-class MuZeroConfigSpecial:
-    def __init__(self):
-        # More information is available here: https://github.com/werner-duvaud/muzero-general/wiki/Hyperparameter-Optimization
-
-        self.seed = 0  # Seed for numpy, torch and the game
-        self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
-
-        ### Game
-        self.env = TilePlacingEnv()
-        # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.observation_shape = (
-            1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
-        # Fixed list of all possible actions. You should only edit the length
-        self.action_space = list(range(len(self.env.discrete_actions)))
-        self.players = list(range(1))  # List of players. You should only edit the length
-        self.stacked_observations = 10  # Number of previous observations and previous actions to add to the current observation
-
-        # Evaluate
-        self.muzero_player = 0  # Turn Muzero begins to play (0: MuZero plays first, 1: MuZero plays second)
-        self.opponent = None  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
-
-        ### Self-Play
-        self.num_workers = 16  # Number of simultaneous threads/workers self-playing to feed the replay buffer
-        self.selfplay_on_gpu = False
-        self.max_moves = 1000  # Maximum number of moves if game is not finished before
-        self.num_simulations = 50  # Number of future moves self-simulated
-        self.discount = 0.997  # Chronological discount of the reward
-        self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
-
-        # Root prior exploration noise
-        self.root_dirichlet_alpha = 0.25
-        self.root_exploration_fraction = 0.25
-
-        # UCB formula
-        self.pb_c_base = 19652
-        self.pb_c_init = 1.25
-
-        ### Network
-        self.network = "fullyconnected"  # "resnet" / "fullyconnected"
-        self.support_size = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size. Choose it so that support_size <= sqrt(max(abs(discounted reward)))
-
-        # Residual Network
-        self.downsample = False  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
-        self.blocks = 2  # Number of blocks in the ResNet
-        self.channels = 32  # Number of channels in the ResNet
-        self.reduced_channels_reward = 32  # Number of channels in reward head
-        self.reduced_channels_value = 32  # Number of channels in value head
-        self.reduced_channels_policy = 32  # Number of channels in policy head
-        self.resnet_fc_reward_layers = [
-            16]  # Define the hidden layers in the reward head of the dynamic network
-        self.resnet_fc_value_layers = [
-            16]  # Define the hidden layers in the value head of the prediction network
-        self.resnet_fc_policy_layers = [
-            16]  # Define the hidden layers in the policy head of the prediction network
-
-        # Fully Connected Network
-        self.encoding_size = 32
-        self.fc_representation_layers = [
-            16]  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
-        self.fc_value_layers = [16]  # Define the hidden layers in the value network
-        self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
-
-        ### Training
-        self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
-                                         os.path.basename(__file__)[:-3],
-                                         datetime.datetime.now().strftime(
-                                             "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
-        self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
-        self.training_steps = 2e3  # Total number of training steps (ie weights update according to a batch)
-        self.batch_size = 512  # Number of parts of games to train on at each training step
-        self.checkpoint_interval = 10  # Number of training steps before using the model for self-playing
-        self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
-        self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
-        print("Training on GPU:", self.train_on_gpu)
-
-        self.optimizer = "SGD"  # "Adam" or "SGD". Paper uses SGD
-        self.weight_decay = 1e-4  # L2 weights regularization
-        self.momentum = 0.9  # Used only if optimizer is SGD
-
-        # Exponential learning rate schedule
-        self.lr_init = 0.05  # Initial learning rate
-        self.lr_decay_rate = 0.75  # Set it to 1 to use a constant learning rate
-        self.lr_decay_steps = 1e3
-
-        ### Replay Buffer
-        self.replay_buffer_size = 2e3  # Number of self-play games to keep in the replay buffer
-        self.num_unroll_steps = 5  # Number of game moves to keep for every batch element
-        self.td_steps = 10  # Number of steps in the future to take into account for calculating the target value
-        self.PER = True  # Prioritized Replay (See paper appendix Training), select in priority the elements in the replay buffer which are unexpected for the network
-        self.PER_alpha = 1  # How much prioritization is used, 0 corresponding to the uniform case, paper suggests 1
-
-        # Reanalyze (See paper appendix Reanalyse)
-        self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
-        self.reanalyse_on_gpu = False  # Use GPU for the reanalyse phase. Paper recommends false (on CPU)
-
-        ### Adjust the self play / training ratio to avoid over/underfitting
-        self.self_play_delay = 0  # Number of seconds to wait after each played game
-        self.training_delay = 0  # Number of seconds to wait after each training step
-        self.ratio = None  # Desired training steps per self played step ratio. Equivalent to a synchronous version, training can take much longer. Set it to None to disable it
-
-    def visit_softmax_temperature_fn(self, trained_steps):
-        """
-        Parameter to alter the visit count distribution to ensure that the action selection becomes greedier as training progresses.
-        The smaller it is, the more likely the best action (ie with the highest visit count) is chosen.
-
-        Returns:
-            Positive float.
-        """
-        if trained_steps < 0.5 * self.training_steps:
-            return 1.0
-        elif trained_steps < 0.75 * self.training_steps:
-            return 0.5
-        else:
-            return 0.25
+# class MuZeroConfigSpecial:
+#     def __init__(self):
+#         # More information is available here: https://github.com/werner-duvaud/muzero-general/wiki/Hyperparameter-Optimization
+#
+#         self.seed = 0  # Seed for numpy, torch and the game
+#         self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
+#
+#         ### Game
+#         self.env = TilePlacingEnv()
+#         # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+#         self.observation_shape = (
+#             1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
+#         # Fixed list of all possible actions. You should only edit the length
+#         self.action_space = list(range(len(self.env.discrete_actions)))
+#         self.players = list(range(1))  # List of players. You should only edit the length
+#         self.stacked_observations = 10  # Number of previous observations and previous actions to add to the current observation
+#
+#         # Evaluate
+#         self.muzero_player = 0  # Turn Muzero begins to play (0: MuZero plays first, 1: MuZero plays second)
+#         self.opponent = None  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
+#
+#         ### Self-Play
+#         self.num_workers = 16  # Number of simultaneous threads/workers self-playing to feed the replay buffer
+#         self.selfplay_on_gpu = False
+#         self.max_moves = 1000  # Maximum number of moves if game is not finished before
+#         self.num_simulations = 50  # Number of future moves self-simulated
+#         self.discount = 0.997  # Chronological discount of the reward
+#         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
+#
+#         # Root prior exploration noise
+#         self.root_dirichlet_alpha = 0.25
+#         self.root_exploration_fraction = 0.25
+#
+#         # UCB formula
+#         self.pb_c_base = 19652
+#         self.pb_c_init = 1.25
+#
+#         ### Network
+#         self.network = "fullyconnected"  # "resnet" / "fullyconnected"
+#         self.support_size = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size. Choose it so that support_size <= sqrt(max(abs(discounted reward)))
+#
+#         # Residual Network
+#         self.downsample = False  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
+#         self.blocks = 2  # Number of blocks in the ResNet
+#         self.channels = 32  # Number of channels in the ResNet
+#         self.reduced_channels_reward = 32  # Number of channels in reward head
+#         self.reduced_channels_value = 32  # Number of channels in value head
+#         self.reduced_channels_policy = 32  # Number of channels in policy head
+#         self.resnet_fc_reward_layers = [
+#             16]  # Define the hidden layers in the reward head of the dynamic network
+#         self.resnet_fc_value_layers = [
+#             16]  # Define the hidden layers in the value head of the prediction network
+#         self.resnet_fc_policy_layers = [
+#             16]  # Define the hidden layers in the policy head of the prediction network
+#
+#         # Fully Connected Network
+#         self.encoding_size = 32
+#         self.fc_representation_layers = [
+#             16]  # Define the hidden layers in the representation network
+#         self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
+#         self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
+#         self.fc_value_layers = [16]  # Define the hidden layers in the value network
+#         self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
+#
+#         ### Training
+#         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
+#                                          os.path.basename(__file__)[:-3],
+#                                          datetime.datetime.now().strftime(
+#                                              "%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
+#         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
+#         self.training_steps = 20e3  # Total number of training steps (ie weights update according to a batch)
+#         self.batch_size = 512  # Number of parts of games to train on at each training step
+#         self.checkpoint_interval = 10  # Number of training steps before using the model for self-playing
+#         self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
+#         self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
+#         print("Training on GPU:", self.train_on_gpu)
+#
+#         self.optimizer = "SGD"  # "Adam" or "SGD". Paper uses SGD
+#         self.weight_decay = 1e-4  # L2 weights regularization
+#         self.momentum = 0.9  # Used only if optimizer is SGD
+#
+#         # Exponential learning rate schedule
+#         self.lr_init = 0.05  # Initial learning rate
+#         self.lr_decay_rate = 0.75  # Set it to 1 to use a constant learning rate
+#         self.lr_decay_steps = 1e3
+#
+#         ### Replay Buffer
+#         self.replay_buffer_size = 2e3  # Number of self-play games to keep in the replay buffer
+#         self.num_unroll_steps = 5  # Number of game moves to keep for every batch element
+#         self.td_steps = 10  # Number of steps in the future to take into account for calculating the target value
+#         self.PER = True  # Prioritized Replay (See paper appendix Training), select in priority the elements in the replay buffer which are unexpected for the network
+#         self.PER_alpha = 1  # How much prioritization is used, 0 corresponding to the uniform case, paper suggests 1
+#
+#         # Reanalyze (See paper appendix Reanalyse)
+#         self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
+#         self.reanalyse_on_gpu = False  # Use GPU for the reanalyse phase. Paper recommends false (on CPU)
+#
+#         ### Adjust the self play / training ratio to avoid over/underfitting
+#         self.self_play_delay = 0  # Number of seconds to wait after each played game
+#         self.training_delay = 0  # Number of seconds to wait after each training step
+#         self.ratio = None  # Desired training steps per self played step ratio. Equivalent to a synchronous version, training can take much longer. Set it to None to disable it
+#
+#     def visit_softmax_temperature_fn(self, trained_steps):
+#         """
+#         Parameter to alter the visit count distribution to ensure that the action selection becomes greedier as training progresses.
+#         The smaller it is, the more likely the best action (ie with the highest visit count) is chosen.
+#
+#         Returns:
+#             Positive float.
+#         """
+#         if trained_steps < 0.5 * self.training_steps:
+#             return 1.0
+#         elif trained_steps < 0.75 * self.training_steps:
+#             return 0.5
+#         else:
+#             return 0.25
 
 
 class MuZeroConfig:
@@ -173,9 +175,11 @@ class MuZeroConfig:
 
         ### Game
         self.env = TilePlacingEnv()
+        self.env.reset()
         # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.observation_shape = (
             1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
+        self.observation_shape = self.env.step(None)[0].shape
         # Fixed list of all possible actions. You should only edit the length
         self.action_space = list(range(len(self.env.discrete_actions)))
         self.players = list(range(1))  # List of players. You should only edit the length
@@ -186,10 +190,10 @@ class MuZeroConfig:
         self.opponent = None  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
 
         ### Self-Play
-        self.num_workers = 16  # Number of simultaneous threads/workers self-playing to feed the replay buffer
+        self.num_workers = 4  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
         self.max_moves = 1000  # Maximum number of moves if game is not finished before
-        self.num_simulations = 50  # Number of future moves self-simulated
+        self.num_simulations = 30  # Number of future moves self-simulated
         self.discount = 0.997  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
 
@@ -207,7 +211,7 @@ class MuZeroConfig:
 
         # Residual Network
         self.downsample = False  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
-        self.blocks = 16  # Number of blocks in the ResNet
+        self.blocks = 32  # Number of blocks in the ResNet
         self.channels = 256  # Number of channels in the ResNet
         self.reduced_channels_reward = 256  # Number of channels in reward head
         self.reduced_channels_value = 256  # Number of channels in value head
@@ -220,12 +224,14 @@ class MuZeroConfig:
                                         256]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
-        self.encoding_size = 128
-        self.fc_representation_layers = [32, 32]  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [32, 32]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [32]  # Define the hidden layers in the reward network
-        self.fc_value_layers = [32]  # Define the hidden layers in the value network
-        self.fc_policy_layers = [32]  # Define the hidden layers in the policy network
+        base = 32
+        self.encoding_size = 2 * base
+        self.fc_representation_layers = [base,
+                                         base]  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = [base, base]  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = [base]  # Define the hidden layers in the reward network
+        self.fc_value_layers = [base]  # Define the hidden layers in the value network
+        self.fc_policy_layers = [base]  # Define the hidden layers in the policy network
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
@@ -241,31 +247,42 @@ class MuZeroConfig:
         self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
         self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
 
-        self.optimizer = "SGD"  # "Adam" or "SGD". Paper uses SGD
-        self.weight_decay = 1e-4  # L2 weights regularization
-        self.momentum = 0.9  # Used only if optimizer is SGD
-
-        # Exponential learning rate schedule
-        self.lr_init = 0.05  # Initial learning rate
-        self.lr_decay_rate = 0.1  # Set it to 1 to use a constant learning rate
-        self.lr_decay_steps = 35e3
+        # self.use_sgd()
+        self.use_adam()
 
         ### Replay Buffer
         self.replay_buffer_size = int(
             1e6)  # Number of self-play games to keep in the replay buffer
-        self.num_unroll_steps = 5  # Number of game moves to keep for every batch element
-        self.td_steps = 10  # Number of steps in the future to take into account for calculating the target value
+        self.num_unroll_steps = 10  # Number of game moves to keep for every batch element
+        self.td_steps = 20  # Number of steps in the future to take into account for calculating the target value
         self.PER = True  # Prioritized Replay (See paper appendix Training), select in priority the elements in the replay buffer which are unexpected for the network
         self.PER_alpha = 1  # How much prioritization is used, 0 corresponding to the uniform case, paper suggests 1
 
         # Reanalyze (See paper appendix Reanalyse)
         self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
-        self.reanalyse_on_gpu = True
+        self.reanalyse_on_gpu = False  # torch.cuda.is_available()
 
         ### Adjust the self play / training ratio to avoid over/underfitting
         self.self_play_delay = 0  # Number of seconds to wait after each played game
         self.training_delay = 0  # Number of seconds to wait after each training step
         self.ratio = None  # Desired training steps per self played step ratio. Equivalent to a synchronous version, training can take much longer. Set it to None to disable it
+
+    def use_sgd(self):
+        self.optimizer = "SGD"  # "Adam" or "SGD". Paper uses SGD
+        self.weight_decay = 1e-4  # L2 weights regularization
+        self.momentum = 0.9  # Used only if optimizer is SGD
+        # Exponential learning rate schedule
+        self.lr_init = 0.05  # Initial learning rate
+        self.lr_decay_rate = 0.1  # Set it to 1 to use a constant learning rate
+        self.lr_decay_steps = 35e3
+
+    def use_adam(self):
+        self.optimizer = "Adam"  # "Adam" or "SGD". Paper uses SGD
+        self.weight_decay = 5e-4  # L2 weights regularization
+        # Exponential learning rate schedule
+        self.lr_init = 0.001  # Initial learning rate
+        self.lr_decay_rate = 0.1  # Set it to 1 to use a constant learning rate
+        self.lr_decay_steps = 35e3
 
     def visit_softmax_temperature_fn(self, trained_steps):
         """
@@ -429,7 +446,7 @@ class FrictionDetector(contactListener):
             obj.tiles.add(tile)
             if not tile.road_visited:
                 tile.road_visited = True
-                self.env.reward += 1000.0 / len(self.env.track)
+                # self.env.reward += 1000.0 / len(self.env.track)   # TODO: remove
                 self.env.tile_visited_count += 1
         else:
             obj.tiles.remove(tile)
@@ -443,11 +460,12 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
     def __init__(self, verbose=1):
         EzPickle.__init__(self)
+        self.tile_visited_count = None
         self.max_steps_without_reward = 200
         self.max_steps = 1000
         self.reward_deteriation_per_tick = -0.1
         self.last_step_positive_reward = None
-        self.track_samples = 50
+        self.track_samples = 100
         self.closest_track_points = 10
         self.steps = None
         self.seed()
@@ -506,6 +524,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.reward = 0.0
         self.prev_reward = 0.0
         self.tile_visited_count = 0
+        self.highest_tile_in_seq = 0
         self.t = 0.0
         self.road_poly = []
 
@@ -519,7 +538,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
                     "instances of this message)"
                 )
         # self.car = Robot(self.world, *self.track[0][1:4])
-        self.car = Robot(self.world, np.random.uniform(-np.pi, np.pi), *self.track[0][2:4])   # Random angle
+        self.car = Robot(self.world, np.random.uniform(-np.pi, np.pi),
+                         *self.track[0][2:4])  # Random angle
 
         self.start = time.time()
         self.steps = 0
@@ -566,36 +586,61 @@ class TilePlacingEnv(gym.Env, EzPickle):
             # We actually don't want to count fuel spent, we want car to be faster.
             # self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
             # self.car.fuel_spent = 0.0
-            step_reward = self.reward - self.prev_reward
-            self.prev_reward = self.reward
-            if self.tile_visited_count == len(self.track):
-                done = True
 
-            # Does not move
-            self.last_step_positive_reward = 0 if step_reward > 0 else self.last_step_positive_reward + 1
-            if self.last_step_positive_reward > self.max_steps_without_reward:
-                step_reward = 2 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+            # All tiles visited
+            if self.tile_visited_count == len(self.track):
                 done = True
 
             # Out of the field
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
-                step_reward = 10 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+                self.reward += 10 * self.reward_deteriation_per_tick * (
+                            self.max_steps - self.steps)
                 done = True
+
+            # Next tile
+            min_delta = 10  # px
+            next_tile = self.world_state[:, self.highest_tile_in_seq]
+            if ((next_tile[1:3] - (x, y)) ** 2).sum() < min_delta ** 2:
+                self.highest_tile_in_seq += 1
+                next_tile = self.world_state[:, self.highest_tile_in_seq]
+                self.reward += 1
+
+            # Does not move
+            self.last_step_positive_reward = 0 if self.reward > self.prev_reward else self.last_step_positive_reward + 1
+            if self.last_step_positive_reward > self.max_steps_without_reward:
+                self.reward += 2 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+                done = True
+
+            # Calculate reward change
+            step_reward = self.reward - self.prev_reward
+            self.prev_reward = self.reward
 
         # track: _, angle, x, y
         car_state = np.array([self.car.hull.angle,
                               self.car.hull.position.x,
                               self.car.hull.position.y])[:, None]
+        # direction = R.from_euler('z', self.car.hull.angle, degrees=False).as_rotvec()
+        # car_line = Line(self.car.hull.position, direction)
+
         distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
                            axis=-1) ** 0.5
         closest_id = np.argsort(distances, axis=0)[:self.closest_track_points]
         near_track = self.world_state[:, closest_id]
+
         relative_near_track = near_track - car_state
 
         # state = np.concatenate((car_state, self.world_state), axis=-1)
-        state = np.concatenate((car_state, relative_near_track), axis=-1).flatten()[None, :]
-        self.state = state[:, None, :] / PLAYFIELD
+        next_tile_diff = self.world_state[:,
+                         self.highest_tile_in_seq:self.highest_tile_in_seq + 2] - car_state  # angle, x, y
+        # print(next_tile_diff, self.highest_tile_in_seq)
+
+        state = np.concatenate((car_state, next_tile_diff), axis=-1)
+        state[1:] = state[1:] / PLAYFIELD
+        # state = np.concatenate((next_tile_diff, ), axis=-1).flatten()
+        self.state = state.flatten()[None, None, :]
+        # print(f'{step_reward:5.4f} | {self.state}')
+        # print(next_tile_diff[1:])
         # print(f'car_state: {car_state.shape} word_state: {self.world_state.shape}')
         # print(f'state: {self.state.shape} ')
 
@@ -675,8 +720,14 @@ class TilePlacingEnv(gym.Env, EzPickle):
             distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
                                axis=-1) ** 0.5
             closest_id = np.argmin(distances, axis=0)
-            # print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f}')
+            print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f} '
+                  f'should go for {self.highest_tile_in_seq:5} {distances[self.highest_tile_in_seq]:6.4f} ')
+            assert self.car.hull.position == (self.car.hull.position.x, self.car.hull.position.y)
+            next_tile_diff = self.world_state[1:,
+                             self.highest_tile_in_seq:self.highest_tile_in_seq + 2] - self.car.hull.position  # angle, x, y
+            print(next_tile_diff[:])
             win.flip()
+            print(self.world_state.shape)
             return self.viewer.isopen
 
         image_data = (
@@ -879,6 +930,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         # self.track = track
         track = np.array(track)
         self.track = track
+        print("track", track)
         self.world_state = np.array([np.interp(np.arange(0, 1, 1 / self.track_samples) * len(t),
                                                np.arange(0, len(t)),
                                                t) for t in track.T[1:]])
