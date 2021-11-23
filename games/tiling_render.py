@@ -3,14 +3,17 @@ import os
 import time
 from itertools import product
 
+import math
 import gym
-import np as np
+from gym import spaces, logger
+from gym.utils import seeding, EzPickle
+import numpy as np
+
+import gym
 import numpy
 import torch
-from gym import logger
-from gym.utils import EzPickle
 
-from .abstract_game import AbstractGame
+from abstract_game import AbstractGame
 
 # from abstract_game import AbstractGame
 
@@ -29,7 +32,7 @@ class MuZeroConfig:
         # More information is available here: https://github.com/werner-duvaud/muzero-general/wiki/Hyperparameter-Optimization
 
         self.seed = 0  # Seed for numpy, torch and the game
-        self.max_num_gpus = 1  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
+        self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
         ### Game
         self.observation_shape = (3, 96,
@@ -480,6 +483,7 @@ and turn at the same time.
 
 Created by Oleg Klimov. Licensed on the same terms as the rest of OpenAI Gym.
 """
+import sys
 import math
 import numpy as np
 
@@ -820,13 +824,13 @@ class CarRacing(gym.Env, EzPickle):
     def step(self, action):
         """
         steer, gas, brake
-        Ranges: [(-1, 1), (0, 1), (0, 1)]
+        [(-1, 1), (0, 1), (0, 1)]
         """
         print(f'{self.t / (self.start - time.time()):4.6f}x real-time \t '
               f'{self.steps / (time.time() - self.start)} steps/s')
         self.steps += 1
         if action is not None:
-            action = ACTIONS[action]
+            # action = ACTIONS[action]
             self.car.steer(-action[0])
             self.car.gas(action[1])
             self.car.brake(action[2])

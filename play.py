@@ -44,7 +44,8 @@ if __name__ == "__main__":
     # print(env.road)
     # exit()
     env = TilePlacingEnv()
-    env.max_steps_without_reward = 500
+    env.max_steps_without_reward = 5000
+    env.max_steps = 100000
     env.reset()
     env.render()
     env.viewer.window.on_key_press = key_press

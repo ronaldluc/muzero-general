@@ -57,7 +57,7 @@ class MuZeroConfigSpecial:
         self.env = TilePlacingEnv()
         # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.observation_shape = (
-            3, 1, 1 + self.env.closest_track_points)  # ([angle, y, x], 1, [*car, *world])
+            1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
         # Fixed list of all possible actions. You should only edit the length
         self.action_space = list(range(len(self.env.discrete_actions)))
         self.players = list(range(1))  # List of players. You should only edit the length
@@ -175,7 +175,7 @@ class MuZeroConfig:
         self.env = TilePlacingEnv()
         # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.observation_shape = (
-            3, 1, 1 + self.env.closest_track_points)  # ([angle, y, x], 1, [*car, *world])
+            1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
         # Fixed list of all possible actions. You should only edit the length
         self.action_space = list(range(len(self.env.discrete_actions)))
         self.players = list(range(1))  # List of players. You should only edit the length
@@ -188,7 +188,7 @@ class MuZeroConfig:
         ### Self-Play
         self.num_workers = 16  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
-        self.max_moves = 27000  # Maximum number of moves if game is not finished before
+        self.max_moves = 1000  # Maximum number of moves if game is not finished before
         self.num_simulations = 50  # Number of future moves self-simulated
         self.discount = 0.997  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
@@ -220,12 +220,12 @@ class MuZeroConfig:
                                         256]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
-        self.encoding_size = 32
-        self.fc_representation_layers = []  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
-        self.fc_value_layers = []  # Define the hidden layers in the value network
-        self.fc_policy_layers = []  # Define the hidden layers in the policy network
+        self.encoding_size = 128
+        self.fc_representation_layers = [32, 32]  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = [32, 32]  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = [32]  # Define the hidden layers in the reward network
+        self.fc_value_layers = [32]  # Define the hidden layers in the value network
+        self.fc_policy_layers = [32]  # Define the hidden layers in the policy network
 
         ### Training
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results",
@@ -444,6 +444,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
     def __init__(self, verbose=1):
         EzPickle.__init__(self)
         self.max_steps_without_reward = 200
+        self.max_steps = 1000
+        self.reward_deteriation_per_tick = -0.1
         self.last_step_positive_reward = None
         self.track_samples = 50
         self.closest_track_points = 10
@@ -472,10 +474,12 @@ class TilePlacingEnv(gym.Env, EzPickle):
         # ad paper: https://neuro.cs.ut.ee/wp-content/uploads/2018/02/2d_racing.pdf
         # ACTIONS = [[1.0, 0.3, 0.0], [0.0, 1.0, 0.0], [-1.0, 0.3, 0.0], [0.0, 0.0, 0.8]]
 
-        discrete_step = 0.25
+        discrete_step = 1 / 3
+        # ranges = np.arange(2 / discrete_step + 1)
+        # ranges = ((ranges - ranges.min()) / (ranges.max() - ranges.min())) * 2 - 1
         self.discrete_actions = list(product(
-            np.arange(-1, 1, discrete_step),
-            np.arange(-1, 1, discrete_step),
+            np.arange(2 / discrete_step + 1) * discrete_step - 1,
+            np.arange(2 / discrete_step + 1) * discrete_step - 1,
         ))
         self.observation_space = spaces.Box(
             low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8
@@ -494,6 +498,200 @@ class TilePlacingEnv(gym.Env, EzPickle):
             self.world.DestroyBody(t)
         self.road = []
         self.car.destroy()
+
+    def reset(self):
+        self.print_performance()
+        self._destroy()
+        self.last_step_positive_reward = 0
+        self.reward = 0.0
+        self.prev_reward = 0.0
+        self.tile_visited_count = 0
+        self.t = 0.0
+        self.road_poly = []
+
+        while True:
+            success = self._create_track()
+            if success:
+                break
+            if self.verbose == 1:
+                print(
+                    "retry to generate track (normal if there are not many"
+                    "instances of this message)"
+                )
+        # self.car = Robot(self.world, *self.track[0][1:4])
+        self.car = Robot(self.world, np.random.uniform(-np.pi, np.pi), *self.track[0][2:4])   # Random angle
+
+        self.start = time.time()
+        self.steps = 0
+        return self.step(None)[0]
+
+    def print_performance(self):
+        if self.t and self.start:
+            print(f'{self.t / (self.start - time.time()):4.6f}x real-time \t '
+                  f'{self.steps / (time.time() - self.start)} steps/s')
+
+    def step(self, action):
+        """
+        # steer, gas, brake
+        # [(-1, 1), (0, 1), (0, 1)]
+        right, left
+        [(-1, 1), (-1, 1)]
+        """
+        # if self.steps == 500:
+        #     self.print_performance()
+        self.steps += 1
+        if action is not None:
+            # action = ACTIONS[action]
+            if np.all(action == 0.0):
+                self.car.brake(1)
+            else:
+                self.car.brake(0)
+                self.car.gas_wheel(action[0], 2)
+                self.car.gas_wheel(action[1], 3)
+            # self.car.steer(-action[0])
+            # self.car.gas(action[1])
+            # self.car.brake(action[2])
+
+        tick = 1.0 / FPS
+        self.car.step(tick)
+        self.world.Step(tick, 6 * 30, 2 * 30)
+        self.t += tick
+
+        # self.state = self.render("state_pixels")
+
+        step_reward = 0
+        done = False
+        if action is not None:  # First step without action, called from reset()
+            self.reward += self.reward_deteriation_per_tick
+            # We actually don't want to count fuel spent, we want car to be faster.
+            # self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
+            # self.car.fuel_spent = 0.0
+            step_reward = self.reward - self.prev_reward
+            self.prev_reward = self.reward
+            if self.tile_visited_count == len(self.track):
+                done = True
+
+            # Does not move
+            self.last_step_positive_reward = 0 if step_reward > 0 else self.last_step_positive_reward + 1
+            if self.last_step_positive_reward > self.max_steps_without_reward:
+                step_reward = 2 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+                done = True
+
+            # Out of the field
+            x, y = self.car.hull.position
+            if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
+                step_reward = 10 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+                done = True
+
+        # track: _, angle, x, y
+        car_state = np.array([self.car.hull.angle,
+                              self.car.hull.position.x,
+                              self.car.hull.position.y])[:, None]
+        distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
+                           axis=-1) ** 0.5
+        closest_id = np.argsort(distances, axis=0)[:self.closest_track_points]
+        near_track = self.world_state[:, closest_id]
+        relative_near_track = near_track - car_state
+
+        # state = np.concatenate((car_state, self.world_state), axis=-1)
+        state = np.concatenate((car_state, relative_near_track), axis=-1).flatten()[None, :]
+        self.state = state[:, None, :] / PLAYFIELD
+        # print(f'car_state: {car_state.shape} word_state: {self.world_state.shape}')
+        # print(f'state: {self.state.shape} ')
+
+        return self.state, step_reward, done, {}
+
+    def render(self, mode="human"):
+        assert mode in ["human", "state_pixels", "rgb_array"]
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+
+            self.viewer = rendering.Viewer(WINDOW_W, WINDOW_H)
+            self.score_label = pyglet.text.Label(
+                "0000",
+                font_size=36,
+                x=20,
+                y=WINDOW_H * 2.5 / 40.00,
+                anchor_x="left",
+                anchor_y="center",
+                color=(255, 255, 255, 255),
+            )
+            self.transform = rendering.Transform()
+
+        if "t" not in self.__dict__:
+            return  # reset() not called yet
+
+        # Animate zoom first second:
+        zoom = 0.1 * SCALE * max(1 - self.t, 0) + ZOOM * SCALE * min(self.t, 1)
+        scroll_x = self.car.hull.position[0]
+        scroll_y = self.car.hull.position[1]
+        angle = -self.car.hull.angle
+        vel = self.car.hull.linearVelocity
+        if np.linalg.norm(vel) > 0.5:
+            angle = math.atan2(vel[0], vel[1])
+        self.transform.set_scale(zoom, zoom)
+        self.transform.set_translation(
+            WINDOW_W / 2
+            - (scroll_x * zoom * math.cos(angle) - scroll_y * zoom * math.sin(angle)),
+            WINDOW_H / 4
+            - (scroll_x * zoom * math.sin(angle) + scroll_y * zoom * math.cos(angle)),
+        )
+        self.transform.set_rotation(angle)
+
+        self.car.draw(self.viewer, mode != "state_pixels")
+
+        arr = None
+        win = self.viewer.window
+        win.switch_to()
+        win.dispatch_events()
+
+        win.clear()
+        t = self.transform
+        if mode == "rgb_array":
+            VP_W = VIDEO_W
+            VP_H = VIDEO_H
+        elif mode == "state_pixels":
+            VP_W = STATE_W
+            VP_H = STATE_H
+        else:
+            pixel_scale = 1
+            if hasattr(win.context, "_nscontext"):
+                pixel_scale = (
+                    win.context._nscontext.view().backingScaleFactor()
+                )  # pylint: disable=protected-access
+            VP_W = int(pixel_scale * WINDOW_W)
+            VP_H = int(pixel_scale * WINDOW_H)
+
+        gl.glViewport(0, 0, VP_W, VP_H)
+        t.enable()
+        self.render_road()
+        for geom in self.viewer.onetime_geoms:
+            geom.render()
+        self.viewer.onetime_geoms = []
+        t.disable()
+        self.render_indicators(WINDOW_W, WINDOW_H)
+
+        if mode == "human":
+            distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
+                               axis=-1) ** 0.5
+            closest_id = np.argmin(distances, axis=0)
+            # print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f}')
+            win.flip()
+            return self.viewer.isopen
+
+        image_data = (
+            pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
+        )
+        arr = np.fromstring(image_data.get_data(), dtype=np.uint8, sep="")
+        arr = arr.reshape(VP_H, VP_W, 4)
+        arr = arr[::-1, :, 0:3]
+
+        return arr
+
+    def close(self):
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None
 
     def _create_track(self):
         CHECKPOINTS = 12
@@ -685,195 +883,6 @@ class TilePlacingEnv(gym.Env, EzPickle):
                                                np.arange(0, len(t)),
                                                t) for t in track.T[1:]])
         return True
-
-    def reset(self):
-        self.print_performance()
-        self._destroy()
-        self.last_step_positive_reward = 0
-        self.reward = 0.0
-        self.prev_reward = 0.0
-        self.tile_visited_count = 0
-        self.t = 0.0
-        self.road_poly = []
-
-        while True:
-            success = self._create_track()
-            if success:
-                break
-            if self.verbose == 1:
-                print(
-                    "retry to generate track (normal if there are not many"
-                    "instances of this message)"
-                )
-        self.car = Robot(self.world, *self.track[0][1:4])
-
-        self.start = time.time()
-        self.steps = 0
-        return self.step(None)[0]
-
-    def print_performance(self):
-        if self.t and self.start:
-            print(f'{self.t / (self.start - time.time()):4.6f}x real-time \t '
-                  f'{self.steps / (time.time() - self.start)} steps/s')
-
-    def step(self, action):
-        """
-        # steer, gas, brake
-        # [(-1, 1), (0, 1), (0, 1)]
-        right, left
-        [(-1, 1), (-1, 1)]
-        """
-        # if self.steps == 500:
-        #     self.print_performance()
-        self.steps += 1
-        if action is not None:
-            # action = ACTIONS[action]
-            self.car.gas_wheel(action[0], 2)
-            self.car.gas_wheel(action[1], 3)
-            # self.car.steer(-action[0])
-            # self.car.gas(action[1])
-            # self.car.brake(action[2])
-
-        tick = 1.0 / FPS
-        self.car.step(tick)
-        self.world.Step(tick, 6 * 30, 2 * 30)
-        self.t += tick
-
-        # self.state = self.render("state_pixels")
-
-        step_reward = 0
-        done = False
-        if action is not None:  # First step without action, called from reset()
-            self.reward -= 0.1
-            # We actually don't want to count fuel spent, we want car to be faster.
-            # self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
-            # self.car.fuel_spent = 0.0
-            step_reward = self.reward - self.prev_reward
-            self.prev_reward = self.reward
-            if self.tile_visited_count == len(self.track):
-                done = True
-            x, y = self.car.hull.position
-
-            # Does not move
-            self.last_step_positive_reward = 0 if step_reward > 0 else self.last_step_positive_reward + 1
-            if self.last_step_positive_reward > self.max_steps_without_reward:
-                step_reward = -100
-                done = True
-
-            # Out of the field
-            if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
-                step_reward = -200
-                done = True
-
-        # track: _, angle, x, y
-        car_state = np.array([self.car.hull.angle,
-                              self.car.hull.position.x,
-                              self.car.hull.position.y])[:, None]
-        distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
-                           axis=-1) ** 0.5
-        closest_id = np.argsort(distances, axis=0)[:self.closest_track_points]
-        near_track = self.world_state[:, closest_id]
-        relative_near_track = near_track - car_state
-
-        # state = np.concatenate((car_state, self.world_state), axis=-1)
-        state = np.concatenate((car_state, relative_near_track), axis=-1)
-        self.state = state[:, None, :] / PLAYFIELD
-        # print(f'car_state: {car_state.shape} word_state: {self.world_state.shape}')
-        # print(f'state: {self.state.shape} ')
-
-        return self.state, step_reward, done, {}
-
-    def render(self, mode="human"):
-        assert mode in ["human", "state_pixels", "rgb_array"]
-        if self.viewer is None:
-            from gym.envs.classic_control import rendering
-
-            self.viewer = rendering.Viewer(WINDOW_W, WINDOW_H)
-            self.score_label = pyglet.text.Label(
-                "0000",
-                font_size=36,
-                x=20,
-                y=WINDOW_H * 2.5 / 40.00,
-                anchor_x="left",
-                anchor_y="center",
-                color=(255, 255, 255, 255),
-            )
-            self.transform = rendering.Transform()
-
-        if "t" not in self.__dict__:
-            return  # reset() not called yet
-
-        # Animate zoom first second:
-        zoom = 0.1 * SCALE * max(1 - self.t, 0) + ZOOM * SCALE * min(self.t, 1)
-        scroll_x = self.car.hull.position[0]
-        scroll_y = self.car.hull.position[1]
-        angle = -self.car.hull.angle
-        vel = self.car.hull.linearVelocity
-        if np.linalg.norm(vel) > 0.5:
-            angle = math.atan2(vel[0], vel[1])
-        self.transform.set_scale(zoom, zoom)
-        self.transform.set_translation(
-            WINDOW_W / 2
-            - (scroll_x * zoom * math.cos(angle) - scroll_y * zoom * math.sin(angle)),
-            WINDOW_H / 4
-            - (scroll_x * zoom * math.sin(angle) + scroll_y * zoom * math.cos(angle)),
-        )
-        self.transform.set_rotation(angle)
-
-        self.car.draw(self.viewer, mode != "state_pixels")
-
-        arr = None
-        win = self.viewer.window
-        win.switch_to()
-        win.dispatch_events()
-
-        win.clear()
-        t = self.transform
-        if mode == "rgb_array":
-            VP_W = VIDEO_W
-            VP_H = VIDEO_H
-        elif mode == "state_pixels":
-            VP_W = STATE_W
-            VP_H = STATE_H
-        else:
-            pixel_scale = 1
-            if hasattr(win.context, "_nscontext"):
-                pixel_scale = (
-                    win.context._nscontext.view().backingScaleFactor()
-                )  # pylint: disable=protected-access
-            VP_W = int(pixel_scale * WINDOW_W)
-            VP_H = int(pixel_scale * WINDOW_H)
-
-        gl.glViewport(0, 0, VP_W, VP_H)
-        t.enable()
-        self.render_road()
-        for geom in self.viewer.onetime_geoms:
-            geom.render()
-        self.viewer.onetime_geoms = []
-        t.disable()
-        self.render_indicators(WINDOW_W, WINDOW_H)
-
-        if mode == "human":
-            distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
-                               axis=-1) ** 0.5
-            closest_id = np.argmin(distances, axis=0)
-            # print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f}')
-            win.flip()
-            return self.viewer.isopen
-
-        image_data = (
-            pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
-        )
-        arr = np.fromstring(image_data.get_data(), dtype=np.uint8, sep="")
-        arr = arr.reshape(VP_H, VP_W, 4)
-        arr = arr[::-1, :, 0:3]
-
-        return arr
-
-    def close(self):
-        if self.viewer is not None:
-            self.viewer.close()
-            self.viewer = None
 
     def render_road(self):
         colors = [0.4, 0.8, 0.4, 1.0] * 4
