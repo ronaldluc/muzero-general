@@ -4,7 +4,7 @@ import time
 from itertools import product
 
 import gym
-import np as np
+import numpy as np
 import numpy
 import torch
 from gym import logger

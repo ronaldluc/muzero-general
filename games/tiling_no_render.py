@@ -22,7 +22,7 @@ from simulation.robot_dynamics import Robot
 
 pyglet.options["debug_gl"] = False
 from pyglet import gl
-from skspatial.objects import Line, Points, Vector
+# from skspatial.objects import Line, Points, Vector
 from scipy.spatial.transform import Rotation as R
 
 STATE_W = 96  # less than Atari 160x192
@@ -177,9 +177,8 @@ class MuZeroConfig:
         self.env = TilePlacingEnv()
         self.env.reset()
         # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.observation_shape = (
-            1, 1, 3 * (1 + self.env.closest_track_points))  # ([angle, y, x], 1, [*car, *world])
-        self.observation_shape = self.env.step(None)[0].shape
+        self.observation_shape = self.env.step(None)[0].shape  # ([angle, y, x], 1, [*car, *world])
+
         # Fixed list of all possible actions. You should only edit the length
         self.action_space = list(range(len(self.env.discrete_actions)))
         self.players = list(range(1))  # List of players. You should only edit the length
@@ -190,9 +189,9 @@ class MuZeroConfig:
         self.opponent = None  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
 
         ### Self-Play
-        self.num_workers = 4  # Number of simultaneous threads/workers self-playing to feed the replay buffer
+        self.num_workers = 15  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
-        self.max_moves = 1000  # Maximum number of moves if game is not finished before
+        self.max_moves = self.env.max_steps  # Maximum number of moves if game is not finished before
         self.num_simulations = 30  # Number of future moves self-simulated
         self.discount = 0.997  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
@@ -202,8 +201,8 @@ class MuZeroConfig:
         self.root_exploration_fraction = 0.25
 
         # UCB formula
-        self.pb_c_base = 19652
-        self.pb_c_init = 1.25
+        self.pb_c_base = 196520      # 196520
+        self.pb_c_init = 4.25   # 1.25
 
         ### Network
         self.network = "fullyconnected"  # "resnet" / "fullyconnected"
@@ -224,10 +223,9 @@ class MuZeroConfig:
                                         256]  # Define the hidden layers in the policy head of the prediction network
 
         # Fully Connected Network
-        base = 32
+        base = 16
         self.encoding_size = 2 * base
-        self.fc_representation_layers = [base,
-                                         base]  # Define the hidden layers in the representation network
+        self.fc_representation_layers = [base, base]  # Define the hidden layers in the representation network
         self.fc_dynamics_layers = [base, base]  # Define the hidden layers in the dynamics network
         self.fc_reward_layers = [base]  # Define the hidden layers in the reward network
         self.fc_value_layers = [base]  # Define the hidden layers in the value network
@@ -242,8 +240,8 @@ class MuZeroConfig:
         self.training_steps = int(
             100e3)  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 1024  # Number of parts of games to train on at each training step
-        self.checkpoint_interval = int(
-            1e3)  # Number of training steps before using the model for self-playing
+        self.checkpoint_interval = int(1e3)  # Number of training steps before using the model for self-playing
+        self.checkpoint_interval = int(3e1)  # Number of training steps before using the model for self-playing
         self.value_loss_weight = 0.25  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
         self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
 
@@ -278,9 +276,10 @@ class MuZeroConfig:
 
     def use_adam(self):
         self.optimizer = "Adam"  # "Adam" or "SGD". Paper uses SGD
-        self.weight_decay = 5e-4  # L2 weights regularization
+        self.weight_decay = 5e-3  # L2 weights regularization
+        self.weight_decay = 5e-5  # L2 weights regularization
         # Exponential learning rate schedule
-        self.lr_init = 0.001  # Initial learning rate
+        self.lr_init = 0.0001  # Initial learning rate
         self.lr_decay_rate = 0.1  # Set it to 1 to use a constant learning rate
         self.lr_decay_steps = 35e3
 
@@ -348,7 +347,7 @@ class Game(AbstractGame):
             Initial observation of the game.
         """
         return self.env.reset()
-        return np.swapaxes(numpy.array(self.env.reset()), 0, 2)
+        # return np.swapaxes(numpy.array(self.env.reset()), 0, 2)
 
     def close(self):
         """
@@ -461,9 +460,11 @@ class TilePlacingEnv(gym.Env, EzPickle):
     def __init__(self, verbose=1):
         EzPickle.__init__(self)
         self.tile_visited_count = None
-        self.max_steps_without_reward = 200
-        self.max_steps = 1000
-        self.reward_deteriation_per_tick = -0.1
+        self.max_steps_without_reward = 100
+        self.max_steps = 1200
+        self.min_checkpoint_delta = 25  # px
+        self.num_future_tiles = 1
+        self.reward_deteriation_per_tick = -0.0
         self.last_step_positive_reward = None
         self.track_samples = 100
         self.closest_track_points = 10
@@ -538,7 +539,13 @@ class TilePlacingEnv(gym.Env, EzPickle):
                     "instances of this message)"
                 )
         # self.car = Robot(self.world, *self.track[0][1:4])
-        self.car = Robot(self.world, np.random.uniform(-np.pi, np.pi),
+        angle_diviation = 0.1
+        # self.car = Robot(self.world, np.random.normal(-angle_diviation * np.pi, angle_diviation * np.pi),
+        #                  *self.track[0][2:4])  # Random angle
+        dir = self.world_state[1, 1:] - self.world_state[0, 1:]
+        dir /= np.linalg.norm(dir)
+        angle = np.arctan2(dir[1], dir[0])
+        self.car = Robot(self.world, np.random.normal(angle - np.pi / 2, angle_diviation * np.pi),
                          *self.track[0][2:4])  # Random angle
 
         self.start = time.time()
@@ -562,8 +569,9 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.steps += 1
         if action is not None:
             # action = ACTIONS[action]
-            if np.all(action == 0.0):
+            if np.all(np.isclose(action, np.zeros_like(action), atol=1e-3)):
                 self.car.brake(1)
+                print("brake ")
             else:
                 self.car.brake(0)
                 self.car.gas_wheel(action[0], 2)
@@ -595,15 +603,14 @@ class TilePlacingEnv(gym.Env, EzPickle):
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
                 self.reward += 10 * self.reward_deteriation_per_tick * (
-                            self.max_steps - self.steps)
+                        self.max_steps - self.steps)
                 done = True
 
             # Next tile
-            min_delta = 10  # px
-            next_tile = self.world_state[:, self.highest_tile_in_seq]
-            if ((next_tile[1:3] - (x, y)) ** 2).sum() < min_delta ** 2:
+            next_tile = self.world_state[self.highest_tile_in_seq]
+            if ((next_tile[1:3] - (x, y)) ** 2).sum() < self.min_checkpoint_delta ** 2:
                 self.highest_tile_in_seq += 1
-                next_tile = self.world_state[:, self.highest_tile_in_seq]
+                next_tile = self.world_state[self.highest_tile_in_seq]
                 self.reward += 1
 
             # Does not move
@@ -617,26 +624,30 @@ class TilePlacingEnv(gym.Env, EzPickle):
             self.prev_reward = self.reward
 
         # track: _, angle, x, y
-        car_state = np.array([self.car.hull.angle,
+        car_state = np.array([self.car.hull.angle % (2 * np.pi),
                               self.car.hull.position.x,
-                              self.car.hull.position.y])[:, None]
+                              self.car.hull.position.y])[None, :]
         # direction = R.from_euler('z', self.car.hull.angle, degrees=False).as_rotvec()
         # car_line = Line(self.car.hull.position, direction)
 
-        distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
+        distances = np.sum((self.world_state[:, 1:] - self.car.hull.position) ** 2,
                            axis=-1) ** 0.5
         closest_id = np.argsort(distances, axis=0)[:self.closest_track_points]
-        near_track = self.world_state[:, closest_id]
+        near_track = self.world_state[closest_id]
 
         relative_near_track = near_track - car_state
 
         # state = np.concatenate((car_state, self.world_state), axis=-1)
-        next_tile_diff = self.world_state[:,
-                         self.highest_tile_in_seq:self.highest_tile_in_seq + 2] - car_state  # angle, x, y
+        next_tile_diff = self.world_state[self.highest_tile_in_seq:self.highest_tile_in_seq + self.num_future_tiles] \
+                         - car_state  # angle, x, y
+        next_tile_diff[:, 1:] = next_tile_diff[:, 1:] * 10    # rescale to make more similar with car position
         # print(next_tile_diff, self.highest_tile_in_seq)
 
-        state = np.concatenate((car_state, next_tile_diff), axis=-1)
-        state[1:] = state[1:] / PLAYFIELD
+        state = np.concatenate((car_state, next_tile_diff), axis=0)
+        # print(f'state: {state.shape}')
+        state[0, 1:] = 0.0  # hide car XY coordinates
+        state[:, 1:] = state[:, 1:] / PLAYFIELD
+        state[:, 0] = state[:, 0] / (2 * np.pi)
         # state = np.concatenate((next_tile_diff, ), axis=-1).flatten()
         self.state = state.flatten()[None, None, :]
         # print(f'{step_reward:5.4f} | {self.state}')
@@ -717,17 +728,16 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.render_indicators(WINDOW_W, WINDOW_H)
 
         if mode == "human":
-            distances = np.sum((self.world_state[1:].T - self.car.hull.position) ** 2,
-                               axis=-1) ** 0.5
+            distances = np.sum((self.world_state[:, 1:] - self.car.hull.position) ** 2, axis=-1) ** 0.5
             closest_id = np.argmin(distances, axis=0)
+            next_tile_diff = self.world_state[self.highest_tile_in_seq:self.highest_tile_in_seq + 2,
+                             1:] - self.car.hull.position  # angle, x, y
             print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f} '
-                  f'should go for {self.highest_tile_in_seq:5} {distances[self.highest_tile_in_seq]:6.4f} ')
+                  f'should go for {self.highest_tile_in_seq:5} {distances[self.highest_tile_in_seq]:6.4f} \n'
+                  # f'{next_tile_diff[:]}'
+                  f'{self.state}')
             assert self.car.hull.position == (self.car.hull.position.x, self.car.hull.position.y)
-            next_tile_diff = self.world_state[1:,
-                             self.highest_tile_in_seq:self.highest_tile_in_seq + 2] - self.car.hull.position  # angle, x, y
-            print(next_tile_diff[:])
             win.flip()
-            print(self.world_state.shape)
             return self.viewer.isopen
 
         image_data = (
@@ -750,6 +760,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         # Create checkpoints
         checkpoints = []
         for c in range(CHECKPOINTS):
+            noise = self.np_random.uniform(0, 2 * math.pi * 1 / CHECKPOINTS)
             noise = self.np_random.uniform(0, 2 * math.pi * 1 / CHECKPOINTS)
             alpha = 2 * math.pi * c / CHECKPOINTS + noise
             rad = self.np_random.uniform(TRACK_RAD / 3, TRACK_RAD)
@@ -927,13 +938,12 @@ class TilePlacingEnv(gym.Env, EzPickle):
                 self.road_poly.append(
                     ([b1_l, b1_r, b2_r, b2_l], (1, 1, 1) if i % 2 == 0 else (1, 0, 0))
                 )
-        # self.track = track
-        track = np.array(track)
+
+        track = np.array(track)  # shape: (n_points, [alpha, beta, x, y])
         self.track = track
-        print("track", track)
         self.world_state = np.array([np.interp(np.arange(0, 1, 1 / self.track_samples) * len(t),
                                                np.arange(0, len(t)),
-                                               t) for t in track.T[1:]])
+                                               t) for t in track.T[1:]]).T  # shape: (samples, [beta, x, y])
         return True
 
     def render_road(self):
