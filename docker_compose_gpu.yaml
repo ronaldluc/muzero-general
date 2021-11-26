@@ -1,0 +1,13 @@
+version: '3'
+services:
+  test:
+    image: muzero
+    command: python -c "import torch; print(torch.cuda.is_available())"
+    # ^ irrelevant, will be overwridden by pycharm, but usefull for testing
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
