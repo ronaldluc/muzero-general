@@ -488,20 +488,26 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.action_space = spaces.Box(
             np.array([-1, -1, ]).astype(np.float32),
             np.array([+1, +1, ]).astype(np.float32),
-        )  # steer, gas, brake
+        )  # left_wheel, right_wheel (back wheels)
 
         # ad paper: https://neuro.cs.ut.ee/wp-content/uploads/2018/02/2d_racing.pdf
         # ACTIONS = [[1.0, 0.3, 0.0], [0.0, 1.0, 0.0], [-1.0, 0.3, 0.0], [0.0, 0.0, 0.8]]
 
+        # if you want to train a discrete model
         discrete_step = 1 / 3
-        # ranges = np.arange(2 / discrete_step + 1)
-        # ranges = ((ranges - ranges.min()) / (ranges.max() - ranges.min())) * 2 - 1
         self.discrete_actions = list(product(
             np.arange(2 / discrete_step + 1) * discrete_step - 1,
             np.arange(2 / discrete_step + 1) * discrete_step - 1,
         ))
+
+        # Vision-compatible observation space (original)
+        # self.observation_space = spaces.Box(
+        #     low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8
+        # )
+
+        # Location-based observation space
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8
+            low=0, high=1, shape=(1, 1, 3*(1+self.num_future_tiles)), dtype=np.float32
         )
 
         self.start = None
@@ -574,8 +580,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
                 print("brake ")
             else:
                 self.car.brake(0)
-                self.car.gas_wheel(action[0], 2)
-                self.car.gas_wheel(action[1], 3)
+                self.car.gas_wheel(gas=action[0], wheel_id=2)
+                self.car.gas_wheel(gas=action[1], wheel_id=3)
             # self.car.steer(-action[0])
             # self.car.gas(action[1])
             # self.car.brake(action[2])
@@ -645,17 +651,17 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
         state = np.concatenate((car_state, next_tile_diff), axis=0)
         # print(f'state: {state.shape}')
-        state[0, 1:] = 0.0  # hide car XY coordinates
-        state[:, 1:] = state[:, 1:] / PLAYFIELD
-        state[:, 0] = state[:, 0] / (2 * np.pi)
+        # state[0, 1:] = 0.0  # hide car XY coordinates
+        state[:, 1:] = state[:, 1:] / PLAYFIELD  # normalize 0-1 range coords
+        state[:, 0] = state[:, 0] / (2 * np.pi)  # normalize angle to 0-1 range
         # state = np.concatenate((next_tile_diff, ), axis=-1).flatten()
-        self.state = state.flatten()[None, None, :]
+        self.state = state.flatten()[None, None, :]  # muzero compatibility
         # print(f'{step_reward:5.4f} | {self.state}')
         # print(next_tile_diff[1:])
         # print(f'car_state: {car_state.shape} word_state: {self.world_state.shape}')
         # print(f'state: {self.state.shape} ')
 
-        return self.state, step_reward, done, {}
+        return self.state, step_reward, done, {}  # gym env compatible return
 
     def render(self, mode="human"):
         assert mode in ["human", "state_pixels", "rgb_array"]
