@@ -119,13 +119,13 @@ class Robot:
                 diff = 0.1  # gradually increase, but stop immediately
             w.gas += diff
 
-    def brake(self, b):
+    def brake(self, intensity):
         """control: brake
 
         Args:
-            b (0..1): Degree to which the brakes are applied. More than 0.9 blocks the wheels to zero rotation"""
+            intensity (0..1): Degree to which the brakes are applied. More than 0.9 blocks the wheels to zero rotation"""
         for w in self.wheels:
-            w.brake = b
+            w.brake = intensity
 
     def steer(self, s):
         """control: steer
@@ -136,13 +136,13 @@ class Robot:
         self.wheels[1].steer = s
         # self.steer = s
 
-    def gas_wheel(self, gas, w_id):
-        w = self.wheels[w_id]
+    def gas_wheel(self, gas, wheel_id):
+        wheel = self.wheels[wheel_id]
         gas = np.clip(gas, -1, 1)
-        diff = gas - w.gas
+        diff = gas - wheel.gas
         if abs(diff) > 0.0:
             diff = np.sign(diff) * 0.1  # gradually increase, but stop immediately
-        w.gas += diff
+        wheel.gas += diff
 
     def step(self, dt):
         for w in self.wheels:
