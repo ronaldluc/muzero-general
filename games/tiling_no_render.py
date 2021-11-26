@@ -525,7 +525,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.car.destroy()
 
     def reset(self):
-        self.print_performance()
+        if self.verbose:
+            self.print_performance()
         self._destroy()
         self.last_step_positive_reward = 0
         self.reward = 0.0
@@ -577,7 +578,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
             # action = ACTIONS[action]
             if np.all(np.isclose(action, np.zeros_like(action), atol=1e-3)):
                 self.car.brake(1)
-                print("brake ")
+                if self.verbose:
+                    print("brake ")
             else:
                 self.car.brake(0)
                 self.car.gas_wheel(gas=action[0], wheel_id=2)
