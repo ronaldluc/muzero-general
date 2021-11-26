@@ -499,8 +499,15 @@ class TilePlacingEnv(gym.Env, EzPickle):
             np.arange(2 / discrete_step + 1) * discrete_step - 1,
             np.arange(2 / discrete_step + 1) * discrete_step - 1,
         ))
+
+        # Vision-compatible observation space (original)
+        # self.observation_space = spaces.Box(
+        #     low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8
+        # )
+
+        # Location-based observation space
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8
+            low=0, high=1, shape=(1, 1, 3*(1+self.num_future_tiles)), dtype=np.float32
         )
 
         self.start = None
