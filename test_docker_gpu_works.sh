@@ -1,0 +1,1 @@
+docker run --gpus all -it muzero python -c "import torch; print(torch.cuda.is_available())"
