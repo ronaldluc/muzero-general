@@ -80,5 +80,6 @@ RUN pip install atari_py pystan pyglet
 RUN conda install -c conda-forge fontconfig
 RUN apt-get install -y x11-apps
 RUN pip install -U scikit-spatial hiredis
+RUN pip install -U stable-baselines3[all]
 
 WORKDIR work
