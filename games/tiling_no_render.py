@@ -580,8 +580,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
                 print("brake ")
             else:
                 self.car.brake(0)
-                self.car.gas_wheel(action[0], 2)
-                self.car.gas_wheel(action[1], 3)
+                self.car.gas_wheel(gas=action[0], wheel_id=2)
+                self.car.gas_wheel(gas=action[1], wheel_id=3)
             # self.car.steer(-action[0])
             # self.car.gas(action[1])
             # self.car.brake(action[2])
