@@ -38,4 +38,4 @@ def record_video(env_id, video_length=1000, prefix='', video_folder='Out/Videos/
     # Close the video recorder
     eval_env.close()
 
-record_video(env_id='test-v0', prefix='test_gym')
+record_video(env_id='test-v0', prefix='test_gym', video_length=100)
