@@ -29,7 +29,7 @@ def record_video(env_id, video_length=1000, prefix='', video_folder='Out/Videos/
     obs = eval_env.reset()
     total_reward = 0
     for time_step in range(video_length):
-        action = [env.action_space.sample()]
+        action = [eval_env.action_space.sample()]
         # action, _state = model.predict(obs)
         obs, reward, done, info = eval_env.step(action)
         total_reward += reward
