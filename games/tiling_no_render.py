@@ -1064,7 +1064,10 @@ class TilePlacingEnv(gym.Env, EzPickle):
         )  # gl.GL_QUADS,
         vl.draw(gl.GL_QUADS)
         vl.delete()
-        self.score_label.text = "%04i" % self.reward
+        if np.isnan(self.reward):
+            self.score_label.text = 'NA'
+        else:
+            self.score_label.text = "%04i" % self.reward
         self.score_label.draw()
 
 
