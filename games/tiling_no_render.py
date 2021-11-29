@@ -15,6 +15,7 @@ from Box2D.b2 import fixtureDef
 from Box2D.b2 import polygonShape
 from gym import spaces
 from gym.utils import seeding, EzPickle
+from gym.envs.classic_control.rendering import make_polygon
 
 from games.abstract_game import AbstractGame
 # from abstract_game import AbstractGame
@@ -729,6 +730,21 @@ class TilePlacingEnv(gym.Env, EzPickle):
         gl.glViewport(0, 0, VP_W, VP_H)
         t.enable()
         self.render_road()
+
+        # render check-points
+        def point_to_polygon_box(point_xy, inflate_by=1, color_rgb=[1, 0, 0]):
+            left_bottom = point_xy + [-inflate_by, -inflate_by]
+            left_top = point_xy + [-inflate_by, +inflate_by]
+            right_top = point_xy + [+inflate_by, +inflate_by]
+            right_bottom = point_xy + [+inflate_by, -inflate_by]
+            box = make_polygon([left_bottom, left_top, right_top, right_bottom])
+            box.set_color(*color_rgb)
+            return box
+
+        for state_ in self.world_state:
+            checkpoint_box = point_to_polygon_box(point_xy=state_[1:3], inflate_by=1, color_rgb=[0.5, 0, 0])
+            checkpoint_box.render()
+
         for geom in self.viewer.onetime_geoms:
             geom.render()
         self.viewer.onetime_geoms = []
