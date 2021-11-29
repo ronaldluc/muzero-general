@@ -465,8 +465,11 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.max_steps = 1200
         self.min_checkpoint_delta = 25  # px
         self.num_future_tiles = 1
-        self.reward_deteriation_per_tick = -0.0
+        self.reward_deteriation_per_tick = 0.0 # -0.0001  #-0.01
+        self.reward_per_checkpoint = 2  # default was 1
+        self.reward_per_unit_getting_closer = 0.1  # reward for moving in the right direction
         self.last_step_positive_reward = None
+        self.last_step_dist_next_tile = None
         self.track_samples = 100
         self.closest_track_points = 10
         self.steps = None
@@ -558,6 +561,12 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
         self.start = time.time()
         self.steps = 0
+
+        next_tile = self.world_state[self.highest_tile_in_seq]
+        x, y = self.car.hull.position
+        dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+        self.last_step_dist_next_tile = dist_next_tile
+
         return self.step(None)[0]
 
     def print_performance(self):
@@ -617,10 +626,22 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
             # Next tile
             next_tile = self.world_state[self.highest_tile_in_seq]
-            if ((next_tile[1:3] - (x, y)) ** 2).sum() < self.min_checkpoint_delta ** 2:
+            dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+
+            # reward for getting closer
+            dist_diff = self.last_step_dist_next_tile - dist_next_tile
+            self.reward += dist_diff*self.reward_per_unit_getting_closer
+
+            # reward for getting the checkpoint
+            if dist_next_tile < self.min_checkpoint_delta:
                 self.highest_tile_in_seq += 1
+                self.reward += self.reward_per_checkpoint
+
+                # recompute next tile
                 next_tile = self.world_state[self.highest_tile_in_seq]
-                self.reward += 1
+                dist_next_tile = ((next_tile[1:3] - (x, y)) ** 2).sum()
+
+            self.last_step_dist_next_tile = dist_next_tile
 
             # Does not move
             self.last_step_positive_reward = 0 if self.reward > self.prev_reward else self.last_step_positive_reward + 1
