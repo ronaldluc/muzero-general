@@ -20,6 +20,8 @@ from gym.envs.classic_control.rendering import make_polygon
 from games.abstract_game import AbstractGame
 # from abstract_game import AbstractGame
 from simulation.robot_dynamics import Robot
+from simulation.hover_drone import Drone
+from scipy.spatial.distance import euclidean as l2_dist
 
 pyglet.options["debug_gl"] = False
 from pyglet import gl
@@ -470,6 +472,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.reward_per_unit_getting_closer = 0.1  # reward for moving in the right direction
         self.last_step_positive_reward = None
         self.last_step_dist_next_tile = None
+        self.dist_next_tile = 0
+        self.dist_diff = 0
         self.track_samples = 100
         self.closest_track_points = 10
         self.steps = None
@@ -564,7 +568,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
         next_tile = self.world_state[self.highest_tile_in_seq]
         x, y = self.car.hull.position
-        dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+        # dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+        dist_next_tile = l2_dist(next_tile[1:3], (x, y))
         self.last_step_dist_next_tile = dist_next_tile
 
         return self.step(None)[0]
@@ -626,22 +631,25 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
             # Next tile
             next_tile = self.world_state[self.highest_tile_in_seq]
-            dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+            # self.dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+            self.dist_next_tile = l2_dist(next_tile[1:3], (x, y))
 
             # reward for getting closer
-            dist_diff = self.last_step_dist_next_tile - dist_next_tile
+            dist_diff = self.last_step_dist_next_tile - self.dist_next_tile
+            self.dist_diff = dist_diff
             self.reward += dist_diff*self.reward_per_unit_getting_closer
 
             # reward for getting the checkpoint
-            if dist_next_tile < self.min_checkpoint_delta:
+            if self.dist_next_tile < self.min_checkpoint_delta:
                 self.highest_tile_in_seq += 1
                 self.reward += self.reward_per_checkpoint
 
                 # recompute next tile
                 next_tile = self.world_state[self.highest_tile_in_seq]
-                dist_next_tile = ((next_tile[1:3] - (x, y)) ** 2).sum()
+                # self.dist_next_tile = np.sqrt(((next_tile[1:3] - (x, y)) ** 2).sum())
+                self.dist_next_tile = l2_dist(next_tile[1:3], (x, y))
 
-            self.last_step_dist_next_tile = dist_next_tile
+            self.last_step_dist_next_tile = self.dist_next_tile
 
             # Does not move
             self.last_step_positive_reward = 0 if self.reward > self.prev_reward else self.last_step_positive_reward + 1
