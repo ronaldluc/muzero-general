@@ -462,6 +462,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
     def __init__(self, verbose=1):
         EzPickle.__init__(self)
+        self.can_fly = False  # set to True for EZ God-Mod flying robot. Helpful for baselines.
         self.tile_visited_count = None
         self.max_steps_without_reward = 100
         self.max_steps = 1200
@@ -543,6 +544,10 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.highest_tile_in_seq = 0
         self.t = 0.0
         self.road_poly = []
+        if self.can_fly:
+            Robot_model = Drone
+        else:
+            Robot_model = Robot
 
         while True:
             success = self._create_track()
@@ -560,7 +565,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         dir = self.world_state[1, 1:] - self.world_state[0, 1:]
         dir /= np.linalg.norm(dir)
         angle = np.arctan2(dir[1], dir[0])
-        self.car = Robot(self.world, np.random.normal(angle - np.pi / 2, angle_diviation * np.pi),
+        self.car = Robot_model(self.world, np.random.normal(angle - np.pi / 2, angle_diviation * np.pi),
                          *self.track[0][2:4])  # Random angle
 
         self.start = time.time()
