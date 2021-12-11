@@ -672,7 +672,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
             self.prev_reward = self.reward
 
         # track: _, angle, x, y
-        car_state = np.array([self.car.hull.angle % (2 * np.pi),
+        car_state = np.array([self.car.hull.angle,  #% (2 * np.pi),
                               self.car.hull.position.x,
                               self.car.hull.position.y])[None, :]
         # direction = R.from_euler('z', self.car.hull.angle, degrees=False).as_rotvec()
