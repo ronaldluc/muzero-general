@@ -648,6 +648,10 @@ class TilePlacingEnv(gym.Env, EzPickle):
             # reward for getting the checkpoint
             if self.dist_next_tile < self.min_checkpoint_delta:
                 self.highest_tile_in_seq += 1
+                if self.highest_tile_in_seq == self.track_samples:
+                    done = True
+                    step_reward = self.reward_per_checkpoint
+                    return self.state, step_reward, done, {}
                 self.reward += self.reward_per_checkpoint
 
                 # recompute next tile
