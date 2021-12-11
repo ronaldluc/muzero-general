@@ -466,7 +466,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.tile_visited_count = None
         self.max_steps_without_reward = 100
         self.max_steps = 1200
-        self.min_checkpoint_delta = 25  # px
+        self.min_checkpoint_delta = 5 # 25  # px
         self.num_future_tiles = 1
         self.reward_deteriation_per_tick = 0.0 # -0.0001  #-0.01
         self.reward_per_checkpoint = 2  # default was 1
