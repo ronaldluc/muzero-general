@@ -662,10 +662,10 @@ class TilePlacingEnv(gym.Env, EzPickle):
             self.last_step_dist_next_tile = self.dist_next_tile
 
             # Does not move
-            self.last_step_positive_reward = 0 if self.reward > self.prev_reward else self.last_step_positive_reward + 1
-            if self.last_step_positive_reward > self.max_steps_without_reward:
-                self.reward += 2 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
-                done = True
+            # self.last_step_positive_reward = 0 if self.reward > self.prev_reward else self.last_step_positive_reward + 1
+            # if self.last_step_positive_reward > self.max_steps_without_reward:
+            #     self.reward += 2 * self.reward_deteriation_per_tick * (self.max_steps - self.steps)
+            #     done = True
 
             # Calculate reward change
             step_reward = self.reward - self.prev_reward
