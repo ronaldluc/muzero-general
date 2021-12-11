@@ -460,9 +460,9 @@ class TilePlacingEnv(gym.Env, EzPickle):
         "video.frames_per_second": FPS,
     }
 
-    def __init__(self, verbose=0):
+    def __init__(self, verbose=0, can_fly=False):
         EzPickle.__init__(self)
-        self.can_fly = True  # set to True for EZ God-Mod flying robot. Helpful for baselines.
+        self.can_fly = can_fly  # set to True for EZ God-Mod flying robot. Helpful for baselines.
         self.tile_visited_count = None
         self.max_steps_without_reward = 100
         self.max_steps = 1200
