@@ -694,8 +694,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
         state = np.concatenate((car_state, next_tile_diff), axis=0)
         # print(f'state: {state.shape}')
         # state[0, 1:] = 0.0  # hide car XY coordinates
-        state[:, 1:] = state[:, 1:] / PLAYFIELD  # normalize 0-1 range coords
-        state[:, 0] = state[:, 0] / (2 * np.pi)  # normalize angle to 0-1 range
+        # state[:, 1:] = state[:, 1:] / PLAYFIELD  # normalize 0-1 range coords
+        # state[:, 0] = state[:, 0] / (2 * np.pi)  # normalize angle to 0-1 range
         # state = np.concatenate((next_tile_diff, ), axis=-1).flatten()
         self.state = state.flatten()[None, None, :]  # muzero compatibility
         # print(f'{step_reward:5.4f} | {self.state}')
