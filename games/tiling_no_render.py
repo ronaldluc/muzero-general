@@ -806,7 +806,11 @@ class TilePlacingEnv(gym.Env, EzPickle):
             print(f'Closest: {closest_id:5} {distances[closest_id]:6.4f} '
                   f'should go for {self.highest_tile_in_seq:5} {distances[self.highest_tile_in_seq]:6.4f} \n'
                   # f'{next_tile_diff[:]}'
-                  f'{self.state}')
+                  # old state prints:
+                  # f' car coord: {np.round(self.state[0][0][0:3], 2)}'
+                  # f'next point: {np.round(self.state[0][0][3:6], 2)}'
+                  f'state: {np.round(self.state[0][0], 2)}'
+            )
             assert self.car.hull.position == (self.car.hull.position.x, self.car.hull.position.y)
             win.flip()
             return self.viewer.isopen
