@@ -10,11 +10,13 @@ class Drone(Robot):
         self.hull.position[0] += self.wheels[2].gas/2
         self.hull.position[1] += self.wheels[3].gas/2
 
+
+class DroneNoInertion(Drone):
     def gas_wheel(self, gas, wheel_id):
         wheel = self.wheels[wheel_id]
         gas = np.clip(gas, -1, 1)
         wheel.gas += gas
-
+    
     def brake(self, intensity):
         for w in self.wheels:
             w.gas = 0
