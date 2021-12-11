@@ -691,13 +691,18 @@ class TilePlacingEnv(gym.Env, EzPickle):
         next_tile_diff[:, 1:] = next_tile_diff[:, 1:] * 10    # rescale to make more similar with car position
         # print(next_tile_diff, self.highest_tile_in_seq)
 
-        state = np.concatenate((car_state, next_tile_diff), axis=0)
+        # state = np.concatenate((car_state, next_tile_diff), axis=0)
+        # self.state = state.flatten()[None, None, :]  # muzero compatibility
+
+        state = next_tile_diff[0][1:3].reshape((1, 1, 2))
+        self.state = state
+
+
         # print(f'state: {state.shape}')
         # state[0, 1:] = 0.0  # hide car XY coordinates
         # state[:, 1:] = state[:, 1:] / PLAYFIELD  # normalize 0-1 range coords
         # state[:, 0] = state[:, 0] / (2 * np.pi)  # normalize angle to 0-1 range
         # state = np.concatenate((next_tile_diff, ), axis=-1).flatten()
-        self.state = state.flatten()[None, None, :]  # muzero compatibility
         # print(f'{step_reward:5.4f} | {self.state}')
         # print(next_tile_diff[1:])
         # print(f'car_state: {car_state.shape} word_state: {self.world_state.shape}')
