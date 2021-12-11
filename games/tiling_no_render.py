@@ -617,7 +617,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
         step_reward = 0
         done = False
-        if action is not None:  # First step without action, called from reset()
+        # if action is not None:  # First step without action, called from reset()
+        if True:
             self.reward += self.reward_deteriation_per_tick
             # We actually don't want to count fuel spent, we want car to be faster.
             # self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
