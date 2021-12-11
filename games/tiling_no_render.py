@@ -469,8 +469,8 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.min_checkpoint_delta = 5 # 25  # px
         self.num_future_tiles = 1
         self.reward_deteriation_per_tick = 0.0 # -0.0001  #-0.01
-        self.reward_per_checkpoint = 2  # default was 1
-        self.reward_per_unit_getting_closer = 0.1  # reward for moving in the right direction
+        self.reward_per_checkpoint = 10  # default was 1
+        self.reward_per_unit_getting_closer = 1  # reward for moving in the right direction
         self.last_step_positive_reward = None
         self.last_step_dist_next_tile = None
         self.dist_next_tile = 0
