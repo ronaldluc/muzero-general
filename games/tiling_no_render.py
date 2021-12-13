@@ -788,7 +788,13 @@ class TilePlacingEnv(gym.Env, EzPickle):
             box.set_color(*color_rgb)
             return box
 
-        for state_ in self.world_state:
+        checkpoints_visited = self.world_state[0:self.highest_tile_in_seq]
+        for state_ in checkpoints_visited:
+            checkpoint_box = point_to_polygon_box(point_xy=state_[1:3], inflate_by=1, color_rgb=[0, 0, 0.5])
+            checkpoint_box.render()
+
+        checkpoints_not_visited = self.world_state[self.highest_tile_in_seq:]
+        for state_ in checkpoints_not_visited:
             checkpoint_box = point_to_polygon_box(point_xy=state_[1:3], inflate_by=1, color_rgb=[0.5, 0, 0])
             checkpoint_box.render()
 
