@@ -454,6 +454,19 @@ class FrictionDetector(contactListener):
             obj.tiles.remove(tile)
 
 
+def angle_between_points(p1, p2):
+    ang1 = np.arctan2(*p1)
+    ang2 = np.arctan2(*p2)
+    return (ang1 - ang2) % (2 * np.pi)
+
+
+def angles_diff(current_angle, target_angle):
+    diff = (target_angle - current_angle) % (np.pi*2)
+    if diff > np.pi :
+        diff = -((np.pi*2) - diff)
+    return diff
+
+
 class TilePlacingEnv(gym.Env, EzPickle):
     metadata = {
         "render.modes": ["human", "rgb_array", "state_pixels"],
@@ -471,10 +484,14 @@ class TilePlacingEnv(gym.Env, EzPickle):
         self.reward_deteriation_per_tick = 0.0 # -0.0001  #-0.01
         self.reward_per_checkpoint = 10  # default was 1
         self.reward_per_unit_getting_closer = 1  # reward for moving in the right direction
+        self.reward_per_unit_turning_correctly = 10
         self.last_step_positive_reward = None
         self.last_step_dist_next_tile = None
         self.dist_next_tile = 0
         self.dist_diff = 0
+        self.last_step_direction_diff = 0
+        self.direction_diff = 0
+        self.next_tile_diff = None
         self.track_samples = 100
         self.closest_track_points = 10
         self.steps = None
@@ -519,7 +536,7 @@ class TilePlacingEnv(gym.Env, EzPickle):
         #     low=0, high=1, shape=(1, 1, 3*(1+self.num_future_tiles)), dtype=np.float32
         # )
         self.observation_space = spaces.Box(
-            low=-200, high=200, shape=(1, 1, 2), dtype=np.float32
+            low=-10, high=10, shape=(1, 1, 3), dtype=np.float32
         )
 
         self.start = None
@@ -618,6 +635,13 @@ class TilePlacingEnv(gym.Env, EzPickle):
 
         # self.state = self.render("state_pixels")
 
+        # track: _, angle, x, y
+        car_state = np.array([self.car.hull.angle % (2 * np.pi),
+                              self.car.hull.position.x,
+                              self.car.hull.position.y])[None, :]
+        # direction = R.from_euler('z', self.car.hull.angle, degrees=False).as_rotvec()
+        # car_line = Line(self.car.hull.position, direction)
+
         step_reward = 0
         done = False
         # if action is not None:  # First step without action, called from reset()
@@ -648,6 +672,27 @@ class TilePlacingEnv(gym.Env, EzPickle):
             self.dist_diff = dist_diff
             self.reward += dist_diff*self.reward_per_unit_getting_closer
 
+            car_direction = car_state[0][0]
+            next_point_direction = angle_between_points([0, 0], next_tile[1:3] - (x, y))
+
+            car_direction = car_direction - np.pi
+            next_point_direction = next_point_direction - np.pi
+            # self.direction_diff = angles_diff(car_direction, next_point_direction)
+            # FIXME: this is garbage
+            self.direction_diff = (car_direction-next_point_direction)/(np.pi*2)
+            if self.direction_diff > 0.5:
+                self.direction_diff = -1+self.direction_diff
+            if self.direction_diff < -0.5:
+                self.direction_diff = 1+self.direction_diff
+            # self.direction_diff = np.clip(self.direction_diff, -0.9, 0.5)  # experimental. But when very close, direction diff can explode
+
+            # reward for aiming at the next point
+            # FIXME: needs to be properly encoded
+            direction_diff_improve = np.abs(self.last_step_direction_diff) - np.abs(self.direction_diff)
+            self.reward += direction_diff_improve*self.reward_per_unit_turning_correctly
+            self.last_step_direction_diff = self.direction_diff
+
+
             # reward for getting the checkpoint
             if self.dist_next_tile < self.min_checkpoint_delta:
                 self.highest_tile_in_seq += 1
@@ -674,30 +719,29 @@ class TilePlacingEnv(gym.Env, EzPickle):
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
 
-        # track: _, angle, x, y
-        car_state = np.array([self.car.hull.angle,  #% (2 * np.pi),
-                              self.car.hull.position.x,
-                              self.car.hull.position.y])[None, :]
-        # direction = R.from_euler('z', self.car.hull.angle, degrees=False).as_rotvec()
-        # car_line = Line(self.car.hull.position, direction)
 
-        distances = np.sum((self.world_state[:, 1:] - self.car.hull.position) ** 2,
-                           axis=-1) ** 0.5
+
+        distances = np.sum((self.world_state[:, 1:] - self.car.hull.position) ** 2, axis=-1) ** 0.5
         closest_id = np.argsort(distances, axis=0)[:self.closest_track_points]
         near_track = self.world_state[closest_id]
 
         relative_near_track = near_track - car_state
 
         # state = np.concatenate((car_state, self.world_state), axis=-1)
-        next_tile_diff = self.world_state[self.highest_tile_in_seq:self.highest_tile_in_seq + self.num_future_tiles] \
-                         - car_state  # angle, x, y
-        next_tile_diff[:, 1:] = next_tile_diff[:, 1:] * 10    # rescale to make more similar with car position
+        next_tile_angle_and_coords = self.world_state[
+                                    self.highest_tile_in_seq:self.highest_tile_in_seq + self.num_future_tiles]
+        next_tile_diff = next_tile_angle_and_coords - car_state  # angle, x, y
+        self.next_tile_diff = next_tile_diff
+        # next_tile_diff[:, 1:] = next_tile_diff[:, 1:] * 10    # rescale to make more similar with car position
         # print(next_tile_diff, self.highest_tile_in_seq)
 
         # state = np.concatenate((car_state, next_tile_diff), axis=0)
         # self.state = state.flatten()[None, None, :]  # muzero compatibility
 
-        state = next_tile_diff[0][1:3].reshape((1, 1, 2))
+
+        state = next_tile_diff[0][0:3].reshape((1, 1, 3))
+        state[0][0][1:3] = state[0][0][1:3] / (PLAYFIELD/self.track_samples)  # normalize coords diff to somewhat sensible range
+        state[0][0][0] = self.direction_diff
         self.state = state
 
 
